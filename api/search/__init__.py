@@ -39,7 +39,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         query = f"""
             SELECT c.act_num, c.year, c.state, c.name, c.link FROM c
-            WHERE c.year BETWEEN {from_year} AND {to_year}
+            WHERE (c.year BETWEEN {from_year} AND {to_year})
             AND c.state IN ({','.join([f"'{state}'" for state in states])})
         """
 
