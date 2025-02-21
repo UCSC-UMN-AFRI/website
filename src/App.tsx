@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Filter, Calendar, MapPin } from "lucide-react";
+import { Search, Calendar, MapPin, BookOpen } from "lucide-react";
 
 interface LegislativeAct {
     act_num: string;
@@ -28,7 +28,7 @@ function App() {
                 from_year: yearRange.min,
                 to_year: yearRange.max,
                 search_keys: [keyword],
-                limit: 100,
+                limit: 25,
                 offset: 0,
             }),
         });
@@ -240,7 +240,7 @@ function App() {
                                         </h3>
                                         <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
                                             <span className="flex items-center">
-                                                <Filter className="h-4 w-4 mr-1" />
+                                                <BookOpen className="h-4 w-4 mr-1" />
                                                 {result.act_num}
                                             </span>
                                             <span className="flex items-center">
