@@ -32,7 +32,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         client = CosmosClient(environ["ACCOUNT_URI"], credential=environ["ACCOUNT_KEY"])
         database = client.get_database_client(environ["COSMOS_DB_NAME"])
-        container = database.get_container_client(environ["CONTAINER_NAME"])
+        container = database.get_container_client(environ["COSMOS_DB_CONTAINER_NAME"])
 
         query = f"""
             SELECT c.act_num, c.year, c.state, c.name, c.link FROM c
