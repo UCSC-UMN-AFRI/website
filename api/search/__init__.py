@@ -34,44 +34,28 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         database = client.get_database_client(environ["COSMOS_DB_NAME"])
         container = database.get_container_client(environ["COSMOS_DB_CONTAINER_NAME"])
 
+        # todo: sanitize input as cosmos db doens't support parameters properly
+
+
         query = f"""
-            SELECT
-                c.act_num,
-                c.year,
-                c.state,
-                c.name,
-                c.link
-            FROM
-                c
-            WHERE
-                c.year BETWEEN @yearStart AND @yearEnd
-                AND c.state IN @states
-                AND EXISTS (
-                    SELECT
-                        VALUE 1
-                    FROM
-                        c.search_keys sk
-                    WHERE
-                        sk IN @searchKeys
-                )
-            ORDER BY
-                c.year ASC OFFSET @offset
-            LIMIT
-                @limit
+            SELECT c.act_num, c.year, c.state, c.name, c.link FROM c
+            WHERE c.year BETWEEN {from_year} AND {to_year}
+            AND c.state IN ({','.join([f"'{state}'" for state in states])})
+        """
+
+        if len(search_keys) > 0:
+            query += f""" AND ARRAY_CONTAINS_ALL(c.search_keys, {','.join([f"'{key}'" for key in search_keys])})"""
+
+        query += f"""
+            ORDER BY c.year ASC
+            OFFSET {offset} LIMIT {limit}
         """
 
         items = container.query_items(
             query=query,
-            parameters={
-                "yearStart": from_year,
-                "yearEnd": to_year,
-                "states": states,
-                "searchKeys": search_keys,
-                "offset": offset,
-                "limit": limit
-            },
             enable_cross_partition_query=True
         )
+
         dict_items = []
         for item in items:
             dict_items.append(item)
