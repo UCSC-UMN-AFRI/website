@@ -40,8 +40,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         query = f"""
             SELECT c.act_num, c.year, c.state, c.name, c.link FROM c
             WHERE (c.year BETWEEN {from_year} AND {to_year})
-            AND c.state IN ({','.join([f"'{state}'" for state in states])})
         """
+
+        if len(states) > 0:
+            query += f""" AND c.state IN ({','.join([f"'{state}'" for state in states])})"""
 
         if len(search_keys) > 0:
             query += f""" AND ARRAY_CONTAINS_ALL(c.search_keys, {','.join([f"'{key}'" for key in search_keys])})"""
