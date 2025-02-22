@@ -8,6 +8,8 @@ import {
     CheckSquare,
     XSquare,
     Plus,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
 
 interface LegislativeAct {
@@ -16,6 +18,10 @@ interface LegislativeAct {
     state: string;
     name: string;
     link: string;
+}
+
+interface PaginationResponse {
+    total: number;
 }
 
 function App() {
@@ -32,6 +38,12 @@ function App() {
     const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
     const stateDropdownRef = useRef<HTMLDivElement>(null);
 
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const itemsPerPage = 25;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (
@@ -47,25 +59,61 @@ function App() {
             document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const handleSearch = async () => {
-        // In a real application, this would make an API call with the filters
-        const response = await fetch("api/search", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                states: selectedStates,
-                from_year: yearRange.min,
-                to_year: yearRange.max,
-                search_keys: keywords,
-                exact_match: isExactMatch,
-                limit: 25,
-                offset: 0,
-            }),
-        });
-        const data = await response.json();
-        setResults(data);
+    const fetchTotalItems = async () => {
+        try {
+            const response = await fetch("api/pagination", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    states: selectedStates,
+                    from_year: yearRange.min,
+                    to_year: yearRange.max,
+                    search_keys: keywords,
+                }),
+            });
+            const data: PaginationResponse = await response.json();
+            setTotalItems(data.total);
+        } catch (error) {
+            console.error("Error fetching total items:", error);
+        }
+    };
+
+    const handleSearch = async (page = 1) => {
+        setCurrentPage(page);
+        // Fetch total items first
+        await fetchTotalItems();
+
+        // Then fetch the actual results
+        try {
+            const response = await fetch("api/search", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    states: selectedStates,
+                    from_year: yearRange.min,
+                    to_year: yearRange.max,
+                    search_keys: keywords,
+                    exact_match: isExactMatch,
+                    limit: itemsPerPage,
+                    offset: (page - 1) * itemsPerPage,
+                }),
+            });
+            const data = await response.json();
+            setResults(data);
+        } catch (error) {
+            console.error("Error fetching results:", error);
+            setResults([]);
+        }
+    };
+
+    const handlePageChange = (page: number) => {
+        if (page >= 1 && page <= totalPages) {
+            handleSearch(page);
+        }
     };
 
     const states = [
@@ -170,6 +218,28 @@ function App() {
             e.preventDefault();
             addKeyword();
         }
+    };
+
+    // Generate page numbers to display
+    const getPageNumbers = () => {
+        const pageNumbers = [];
+        const maxPagesToShow = 5;
+
+        let startPage = Math.max(
+            1,
+            currentPage - Math.floor(maxPagesToShow / 2)
+        );
+        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+        if (endPage - startPage + 1 < maxPagesToShow) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pageNumbers.push(i);
+        }
+
+        return pageNumbers;
     };
 
     return (
@@ -381,7 +451,7 @@ function App() {
 
                     <div className="mt-6 flex justify-end">
                         <button
-                            onClick={handleSearch}
+                            onClick={() => handleSearch(1)}
                             className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
                         >
                             Search
@@ -395,6 +465,17 @@ function App() {
                         <h2 className="text-lg font-semibold text-gray-900">
                             Search Results
                         </h2>
+                        {totalItems > 0 && (
+                            <p className="text-sm text-gray-500 mt-1">
+                                Showing {(currentPage - 1) * itemsPerPage + 1}{" "}
+                                to{" "}
+                                {Math.min(
+                                    currentPage * itemsPerPage,
+                                    totalItems
+                                )}{" "}
+                                of {totalItems} results
+                            </p>
+                        )}
                     </div>
                     <div className="divide-y divide-gray-200">
                         {results.map((result) => (
@@ -439,6 +520,59 @@ function App() {
                             </div>
                         )}
                     </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="px-6 py-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <button
+                                    onClick={() =>
+                                        handlePageChange(currentPage - 1)
+                                    }
+                                    disabled={currentPage === 1}
+                                    className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
+                                        currentPage === 1
+                                            ? "text-gray-400 cursor-not-allowed"
+                                            : "text-gray-700 hover:bg-gray-50"
+                                    }`}
+                                >
+                                    <ChevronLeft className="h-5 w-5 mr-1" />
+                                    Previous
+                                </button>
+                                <div className="flex items-center space-x-2">
+                                    {getPageNumbers().map((page) => (
+                                        <button
+                                            key={page}
+                                            onClick={() =>
+                                                handlePageChange(page)
+                                            }
+                                            className={`px-3 py-2 rounded-md text-sm font-medium ${
+                                                currentPage === page
+                                                    ? "bg-blue-600 text-white"
+                                                    : "text-gray-700 hover:bg-gray-50"
+                                            }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={() =>
+                                        handlePageChange(currentPage + 1)
+                                    }
+                                    disabled={currentPage === totalPages}
+                                    className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
+                                        currentPage === totalPages
+                                            ? "text-gray-400 cursor-not-allowed"
+                                            : "text-gray-700 hover:bg-gray-50"
+                                    }`}
+                                >
+                                    Next
+                                    <ChevronRight className="h-5 w-5 ml-1" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
         </div>
