@@ -1,5 +1,14 @@
-import { useState } from "react";
-import { Search, Calendar, MapPin, BookOpen } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import {
+    Search,
+    Calendar,
+    MapPin,
+    BookOpen,
+    X,
+    CheckSquare,
+    XSquare,
+    Plus,
+} from "lucide-react";
 
 interface LegislativeAct {
     act_num: string;
@@ -10,11 +19,33 @@ interface LegislativeAct {
 }
 
 function App() {
-    const [yearRange, setYearRange] = useState({ min: 1975, max: new Date().getFullYear() });
-    const [selectedState, setSelectedState] = useState<string>("");
-    const [keyword, setKeyword] = useState("");
+    const [yearRange, setYearRange] = useState({
+        min: 1975,
+        max: new Date().getFullYear(),
+    });
+    const [selectedStates, setSelectedStates] = useState<string[]>([]);
+    const [stateSearch, setStateSearch] = useState("");
+    const [keywords, setKeywords] = useState<string[]>([]);
+    const [currentKeyword, setCurrentKeyword] = useState("");
     const [results, setResults] = useState<LegislativeAct[]>([]);
     const [isExactMatch, setIsExactMatch] = useState(false);
+    const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
+    const stateDropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (
+                stateDropdownRef.current &&
+                !stateDropdownRef.current.contains(event.target as Node)
+            ) {
+                setIsStateDropdownOpen(false);
+            }
+        }
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () =>
+            document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const handleSearch = async () => {
         // In a real application, this would make an API call with the filters
@@ -24,10 +55,11 @@ function App() {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                states: [selectedState],
+                states: selectedStates,
                 from_year: yearRange.min,
                 to_year: yearRange.max,
-                search_keys: [keyword],
+                search_keys: keywords,
+                exact_match: isExactMatch,
                 limit: 25,
                 offset: 0,
             }),
@@ -90,6 +122,56 @@ function App() {
         "WY",
     ];
 
+    const filteredStates = states.filter(
+        (state) =>
+            !selectedStates.includes(state) &&
+            state.toLowerCase().includes(stateSearch.toLowerCase())
+    );
+
+    const handleStateSelect = (state: string) => {
+        if (!selectedStates.includes(state)) {
+            setSelectedStates([...selectedStates, state]);
+            setStateSearch("");
+        }
+    };
+
+    const removeState = (state: string) => {
+        setSelectedStates(selectedStates.filter((s) => s !== state));
+    };
+
+    const handleSelectAllStates = () => {
+        setSelectedStates([...states]);
+        setStateSearch("");
+        setIsStateDropdownOpen(false);
+    };
+
+    const handleClearAllStates = () => {
+        setSelectedStates([]);
+        setStateSearch("");
+        setIsStateDropdownOpen(false);
+    };
+
+    const addKeyword = () => {
+        if (
+            currentKeyword.trim() &&
+            !keywords.includes(currentKeyword.trim())
+        ) {
+            setKeywords([...keywords, currentKeyword.trim()]);
+            setCurrentKeyword("");
+        }
+    };
+
+    const removeKeyword = (keyword: string) => {
+        setKeywords(keywords.filter((k) => k !== keyword));
+    };
+
+    const handleKeywordKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            addKeyword();
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
@@ -108,17 +190,49 @@ function App() {
                         {/* Keyword Search */}
                         <div className="space-y-2">
                             <label className="block text-sm font-medium text-gray-700">
-                                Keyword Search
+                                Keywords
                             </label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                                 <input
                                     type="text"
-                                    value={keyword}
-                                    onChange={(e) => setKeyword(e.target.value)}
+                                    value={currentKeyword}
+                                    onChange={(e) =>
+                                        setCurrentKeyword(e.target.value)
+                                    }
+                                    onKeyPress={handleKeywordKeyPress}
                                     className="pl-10 w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="Enter keywords..."
+                                    placeholder="Enter keyword..."
                                 />
+                                <button
+                                    onClick={addKeyword}
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    <Plus className="h-5 w-5" />
+                                </button>
+                            </div>
+                            {/* Keywords Pills */}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {keywords.map((keyword) => (
+                                    <span
+                                        key={keyword}
+                                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
+                                    >
+                                        {keyword}
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                removeKeyword(keyword)
+                                            }
+                                            className="ml-1.5 inline-flex items-center justify-center"
+                                        >
+                                            <X
+                                                className="h-4 w-4 hover:text-blue-900"
+                                                aria-hidden="true"
+                                            />
+                                        </button>
+                                    </span>
+                                ))}
                             </div>
                             <div className="flex items-center mt-2">
                                 <input
@@ -140,26 +254,88 @@ function App() {
                         </div>
 
                         {/* State Selection */}
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium text-gray-700">
-                                State
-                            </label>
+                        <div className="space-y-2" ref={stateDropdownRef}>
+                            <div className="flex justify-between items-center">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    States
+                                </label>
+                                <span className="text-sm text-gray-500">
+                                    {selectedStates.length} of {states.length}{" "}
+                                    selected
+                                </span>
+                            </div>
                             <div className="relative">
                                 <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                                <select
-                                    value={selectedState}
-                                    onChange={(e) =>
-                                        setSelectedState(e.target.value)
-                                    }
-                                    className="pl-10 w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                                <input
+                                    type="text"
+                                    value={stateSearch}
+                                    onChange={(e) => {
+                                        setStateSearch(e.target.value);
+                                        setIsStateDropdownOpen(true);
+                                    }}
+                                    onFocus={() => setIsStateDropdownOpen(true)}
+                                    className="pl-10 w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="Search states..."
+                                />
+                                {isStateDropdownOpen &&
+                                    filteredStates.length > 0 && (
+                                        <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-60 overflow-auto">
+                                            <ul className="py-1">
+                                                {filteredStates.map((state) => (
+                                                    <li
+                                                        key={state}
+                                                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-gray-900"
+                                                        onClick={() =>
+                                                            handleStateSelect(
+                                                                state
+                                                            )
+                                                        }
+                                                    >
+                                                        {state}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                            </div>
+                            <div className="flex gap-2 mb-2">
+                                <button
+                                    type="button"
+                                    onClick={handleSelectAllStates}
+                                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                                 >
-                                    <option value="">All States</option>
-                                    {states.map((state) => (
-                                        <option key={state} value={state}>
-                                            {state}
-                                        </option>
-                                    ))}
-                                </select>
+                                    <CheckSquare className="h-4 w-4 mr-1.5" />
+                                    Select All
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleClearAllStates}
+                                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                                >
+                                    <XSquare className="h-4 w-4 mr-1.5" />
+                                    Clear All
+                                </button>
+                            </div>
+                            {/* Selected States Pills */}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {selectedStates.map((state) => (
+                                    <span
+                                        key={state}
+                                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
+                                    >
+                                        {state}
+                                        <button
+                                            type="button"
+                                            onClick={() => removeState(state)}
+                                            className="ml-1.5 inline-flex items-center justify-center"
+                                        >
+                                            <X
+                                                className="h-4 w-4 hover:text-blue-900"
+                                                aria-hidden="true"
+                                            />
+                                        </button>
+                                    </span>
+                                ))}
                             </div>
                         </div>
 
