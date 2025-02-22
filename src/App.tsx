@@ -83,7 +83,9 @@ function App() {
     const handleSearch = async (page = 1) => {
         setCurrentPage(page);
         // Fetch total items first
-        await fetchTotalItems();
+        if (page === 1) {
+            await fetchTotalItems();
+        }
 
         // Then fetch the actual results
         try {
