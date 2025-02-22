@@ -34,11 +34,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         database = client.get_database_client(environ["COSMOS_DB_NAME"])
         container = database.get_container_client(environ["COSMOS_DB_CONTAINER_NAME"])
 
-        # todo: sanitize input as cosmos db doens't support parameters properly
-
+        # todo: sanitize input as cosmos db doesn't support parameters properly
 
         query = f"""
-            SELECT c.act_num, c.year, c.state, c.name, c.link FROM c
+            SELECT c.act_num, c.year, c.state, c.name, c.link
+            FROM c
             WHERE (c.year BETWEEN {from_year} AND {to_year})
         """
 
