@@ -41,7 +41,7 @@ function App() {
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
-    const itemsPerPage = 25;
+    const [itemsPerPage, setItemsPerPage] = useState(10);
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
     useEffect(() => {
@@ -116,6 +116,10 @@ function App() {
         if (page >= 1 && page <= totalPages) {
             handleSearch(page);
         }
+    };
+
+    const handleItemsPerPageChange = (value: number) => {
+        setItemsPerPage(value);
     };
 
     const states = [
@@ -451,7 +455,20 @@ function App() {
                         </div>
                     </div>
 
-                    <div className="mt-6 flex justify-end">
+                    <div className="mt-6 flex justify-between items-center">
+                        <div className="flex items-center space-x-2">
+                            <label className="text-sm font-medium text-gray-700">Results per page:</label>
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                                className="rounded-md border border-gray-300 py-1 px-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            >
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                        </div>
                         <button
                             onClick={() => handleSearch(1)}
                             className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
