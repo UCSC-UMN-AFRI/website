@@ -44,8 +44,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             enable_cross_partition_query=True
         )
 
+        # Convert ItemPaged iterator to list and get first (and only) item
+        count = list(items)[0]
+
         resp = {
-            "total": items[0]
+            "total": count
         }
 
         return func.HttpResponse(
