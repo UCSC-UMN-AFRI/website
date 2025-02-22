@@ -306,7 +306,7 @@ function App() {
                                     </span>
                                 ))}
                             </div>
-                            <div className="flex items-center mt-2">
+                            {/* <div className="flex items-center mt-2">
                                 <input
                                     type="checkbox"
                                     id="exactMatch"
@@ -322,7 +322,7 @@ function App() {
                                 >
                                     Exact match only
                                 </label>
-                            </div>
+                            </div> */}
                         </div>
 
                         {/* State Selection */}
