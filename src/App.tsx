@@ -34,7 +34,7 @@ function App() {
     const [keywords, setKeywords] = useState<string[]>([]);
     const [currentKeyword, setCurrentKeyword] = useState("");
     const [results, setResults] = useState<LegislativeAct[]>([]);
-    const [isExactMatch, setIsExactMatch] = useState(false);
+    // const [isExactMatch, setIsExactMatch] = useState(false);
     const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
     const stateDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -99,7 +99,7 @@ function App() {
                     from_year: yearRange.min,
                     to_year: yearRange.max,
                     search_keys: keywords,
-                    exact_match: isExactMatch,
+                    // exact_match: isExactMatch,
                     limit: itemsPerPage,
                     offset: (page - 1) * itemsPerPage,
                 }),
