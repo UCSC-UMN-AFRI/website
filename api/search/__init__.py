@@ -60,8 +60,6 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         dict_items = []
         for item in items:
-            # truncate name to 500 characters
-            item['name'] = item['name'][:500] + '...' if len(item['name']) > 500 else ''
             dict_items.append(item)
 
         return func.HttpResponse(
