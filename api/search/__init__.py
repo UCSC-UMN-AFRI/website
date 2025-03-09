@@ -62,6 +62,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         for item in items:
             # truncate name to 500 characters
             item['name'] = item['name'][:500] + '...' if len(item['name']) > 500 else item['name']
+            item['backup_link'] = f"https://statelegislativedata.blob.core.windows.net/raw-data/{item['act_num']}.pdf"
             dict_items.append(item)
 
         return func.HttpResponse(

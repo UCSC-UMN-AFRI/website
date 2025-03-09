@@ -18,6 +18,7 @@ interface LegislativeAct {
     state: string;
     name: string;
     link: string;
+    backup_link: string;
 }
 
 interface PaginationResponse {
@@ -457,10 +458,16 @@ function App() {
 
                     <div className="mt-6 flex justify-between items-center">
                         <div className="flex items-center space-x-2">
-                            <label className="text-sm font-medium text-gray-700">Results per page:</label>
+                            <label className="text-sm font-medium text-gray-700">
+                                Results per page:
+                            </label>
                             <select
                                 value={itemsPerPage}
-                                onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                                onChange={(e) =>
+                                    handleItemsPerPageChange(
+                                        Number(e.target.value)
+                                    )
+                                }
                                 className="rounded-md border border-gray-300 py-1 px-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             >
                                 <option value={10}>10</option>
@@ -527,6 +534,16 @@ function App() {
                                                 <Calendar className="h-4 w-4 mr-1" />
                                                 {result.year}
                                             </span>
+                                        </div>
+                                        <div className="mt-2">
+                                            <a
+                                                href={result.backup_link}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-sm text-blue-600 hover:text-blue-800"
+                                            >
+                                                Backup PDF
+                                            </a>
                                         </div>
                                     </div>
                                 </div>
