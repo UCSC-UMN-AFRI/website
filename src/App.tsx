@@ -534,16 +534,16 @@ function App() {
                                                 <Calendar className="h-4 w-4 mr-1" />
                                                 {result.year}
                                             </span>
-                                        </div>
-                                        <div className="mt-2">
-                                            <a
-                                                href={result.backup_link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-sm text-blue-600 hover:text-blue-800"
-                                            >
-                                                Backup PDF
-                                            </a>
+                                            <span className="flex items-center">
+                                                <a
+                                                    href={result.backup_link}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-sm text-blue-600 hover:text-blue-800"
+                                                >
+                                                    PDF Backup
+                                                </a>
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
