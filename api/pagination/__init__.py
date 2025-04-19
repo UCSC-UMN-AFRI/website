@@ -23,21 +23,27 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         client = CosmosClient(environ["ACCOUNT_URI"], credential=environ["ACCOUNT_KEY"])
         database = client.get_database_client(environ["COSMOS_DB_NAME"])
-        container = database.get_container_client(environ["COSMOS_DB_CONTAINER_NAME"])
+        container = database.get_container_client("search_index")
 
         # todo: sanitize input as cosmos db doesn't support parameters properly
+        # todo: currently this returns count for an act_num multiple times if it has multiple search keys
+
+        if len(search_keys) == 0:
+            return func.HttpResponse(
+                json.dumps({"error": "Search keys are required"}),
+                mimetype="application/json",
+                status_code=400
+            )
 
         query = f"""
             SELECT VALUE COUNT(1)
             FROM c
             WHERE (c.year BETWEEN {from_year} AND {to_year})
+            AND c.search_key IN ({','.join([f"'{key}'" for key in search_keys])})
         """
 
         if len(states) > 0:
             query += f""" AND c.state IN ({','.join([f"'{state}'" for state in states])})"""
-
-        if len(search_keys) > 0:
-            query += f""" AND ARRAY_CONTAINS_ALL(c.search_keys, {','.join([f"'{key}'" for key in search_keys])})"""
 
         items = container.query_items(
             query=query,

@@ -32,38 +32,62 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         client = CosmosClient(environ["ACCOUNT_URI"], credential=environ["ACCOUNT_KEY"])
         database = client.get_database_client(environ["COSMOS_DB_NAME"])
-        container = database.get_container_client(environ["COSMOS_DB_CONTAINER_NAME"])
+        search_index = database.get_container_client("search_index")
+        acts = database.get_container_client("acts")
 
         # todo: sanitize input as cosmos db doesn't support parameters properly
 
+        if len(search_keys) == 0:
+            return func.HttpResponse(
+                json.dumps({"error": "Search keys are required"}),
+                mimetype="application/json",
+                status_code=400
+            )
+
         query = f"""
-            SELECT c.act_num, c.year, c.state, c.name, c.link
+            SELECT c.act_num, c.relevance, c.search_key
             FROM c
             WHERE (c.year BETWEEN {from_year} AND {to_year})
+            AND c.search_key IN ({','.join([f"'{key}'" for key in search_keys])})
         """
 
         if len(states) > 0:
             query += f""" AND c.state IN ({','.join([f"'{state}'" for state in states])})"""
 
-        if len(search_keys) > 0:
-            query += f""" AND ARRAY_CONTAINS_ALL(c.search_keys, {','.join([f"'{key}'" for key in search_keys])})"""
-
         query += f"""
-            ORDER BY c.year ASC
+            ORDER BY c.relevance ASC
             OFFSET {offset} LIMIT {limit}
         """
 
-        items = container.query_items(
+        search_items = [item for item in search_index.query_items(
             query=query,
+            enable_cross_partition_query=True
+        )]
+
+        acts_to_fetch = [item['act_num'] for item in search_items]
+        acts_items = acts.query_items(
+            query=f"""SELECT * FROM c WHERE c.act_num IN ({','.join([f"'{act}'" for act in acts_to_fetch])})""",
             enable_cross_partition_query=True
         )
 
+        act_data = { }
+        for act_item in acts_items:
+            act_data[act_item['act_num']] = act_item
+
         dict_items = []
-        for item in items:
+        for search_item in search_items:
+            act_item = act_data[search_item['act_num']]
             # truncate name to 500 characters
-            item['name'] = item['name'][:500] + '...' if len(item['name']) > 500 else item['name']
-            item['backup_link'] = f"https://statelegislativedata.blob.core.windows.net/raw-data/{item['act_num']}.pdf"
-            dict_items.append(item)
+            dict_items.append({
+                "act_num": search_item['act_num'],
+                "relevance": search_item['relevance'],
+                "search_key": search_item['search_key'],
+                "year": act_item['year'],
+                "state": act_item['state'],
+                "name": act_item['name'][:500] + '...' if len(act_item['name']) > 500 else act_item['name'],
+                "link": act_item['link'],
+                "backup_link": f"https://statelegislativedata.blob.core.windows.net/raw-data/{search_item['act_num']}.pdf"
+            })
 
         return func.HttpResponse(
             json.dumps(dict_items),
