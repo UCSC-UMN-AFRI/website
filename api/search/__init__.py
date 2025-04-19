@@ -55,7 +55,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             query += f""" AND c.state IN ({','.join([f"'{state}'" for state in states])})"""
 
         query += f"""
-            ORDER BY c.relevance ASC
+            ORDER BY c.relevance DESC
             OFFSET {offset} LIMIT {limit}
         """
 
