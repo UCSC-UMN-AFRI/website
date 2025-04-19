@@ -10,6 +10,7 @@ import {
     Plus,
     ChevronLeft,
     ChevronRight,
+    Star,
 } from "lucide-react";
 
 interface LegislativeAct {
@@ -19,6 +20,8 @@ interface LegislativeAct {
     name: string;
     link: string;
     backup_link: string;
+    relevance: number;
+    search_key: string;
 }
 
 interface PaginationResponse {
@@ -543,6 +546,13 @@ function App() {
                                                 >
                                                     PDF Backup
                                                 </a>
+                                            </span>
+                                            <span className="flex items-center">
+                                                <Star className="h-4 w-4 mr-1" />
+                                                {result.relevance}
+                                                <span className="flex items-center">
+                                                    {result.search_key}
+                                                </span>
                                             </span>
                                         </div>
                                     </div>
