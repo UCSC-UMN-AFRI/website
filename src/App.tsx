@@ -547,15 +547,15 @@ function App() {
                                                     PDF Backup
                                                 </a>
                                             </span>
-                                            <span className="flex items-center">
-                                                <Star className="h-4 w-4 mr-1" />
-                                                {result.relevance}
-                                                <span className="flex items-center">
-                                                    {result.search_key}
-                                                </span>
-                                            </span>
                                         </div>
                                     </div>
+                                    <span className="flex items-center text-sm text-gray-600 ml-4 flex-shrink-0">
+                                        <Star className="h-4 w-4 mr-1 text-yellow-500" />
+                                        {result.relevance}
+                                        <span className="ml-2 px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                                            {result.search_key}
+                                        </span>
+                                    </span>
                                 </div>
                             </div>
                         ))}
