@@ -85,6 +85,15 @@ function App() {
     };
 
     const handleSearch = async (page = 1) => {
+        // Prevent search if no keywords are entered
+        if (keywords.length === 0) {
+            console.log("Search prevented: No keywords provided.");
+            setResults([]); // Clear previous results
+            setTotalItems(0); // Reset total items
+            setCurrentPage(1); // Reset to page 1
+            return;
+        }
+
         setCurrentPage(page);
         // Fetch total items first
         if (page === 1) {
@@ -481,7 +490,12 @@ function App() {
                         </div>
                         <button
                             onClick={() => handleSearch(1)}
-                            className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                            disabled={keywords.length === 0}
+                            className={`bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors ${
+                                keywords.length === 0
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : ""
+                            }`}
                         >
                             Search
                         </button>
