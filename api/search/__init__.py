@@ -70,27 +70,32 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             enable_cross_partition_query=True
         )
 
-        act_data = { }
+        act_data = {}
         for act_item in acts_items:
             act_data[act_item['act_num']] = act_item
 
-        dict_items = []
+        act_items = {}
         for search_item in search_items:
             act_item = act_data[search_item['act_num']]
             # truncate name to 500 characters
-            dict_items.append({
-                "act_num": search_item['act_num'],
-                "relevance": search_item['relevance'],
+            if act_items.get(act_item['act_num']) is None:
+                act_items[act_item['act_num']] = {
+                    "act_num": act_item['act_num'],
+                    "year": act_item['year'],
+                    "state": act_item['state'],
+                    "name": act_item['name'][:500] + '...' if len(act_item['name']) > 500 else act_item['name'],
+                    "link": act_item['link'],
+                    "backup_link": f"https://statelegislativedata.blob.core.windows.net/raw-data/{search_item['act_num']}.pdf",
+                    "relevances": []
+                }
+
+            act_items[act_item['act_num']]['relevances'].append({
+                "score": search_item['relevance'],
                 "search_key": search_item['search_key'],
-                "year": act_item['year'],
-                "state": act_item['state'],
-                "name": act_item['name'][:500] + '...' if len(act_item['name']) > 500 else act_item['name'],
-                "link": act_item['link'],
-                "backup_link": f"https://statelegislativedata.blob.core.windows.net/raw-data/{search_item['act_num']}.pdf"
             })
 
         return func.HttpResponse(
-            json.dumps(dict_items),
+            json.dumps(list(act_items.values())),
             mimetype="application/json",
             status_code=200
         )
