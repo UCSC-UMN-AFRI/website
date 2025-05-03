@@ -20,8 +20,10 @@ interface LegislativeAct {
     name: string;
     link: string;
     backup_link: string;
-    relevance: number;
-    search_key: string;
+    relevances: {
+        score: number;
+        search_key: string;
+    }[];
 }
 
 interface PaginationResponse {
@@ -563,13 +565,22 @@ function App() {
                                             </span>
                                         </div>
                                     </div>
-                                    <span className="flex items-center text-sm text-gray-600 ml-4 flex-shrink-0">
-                                        <Star className="h-4 w-4 mr-1 text-yellow-500" />
-                                        {result.relevance}
-                                        <span className="ml-2 px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                                            {result.search_key}
-                                        </span>
-                                    </span>
+                                    <div className="flex flex-col items-end space-y-2">
+                                        {result.relevances.map(
+                                            (relevance, index) => (
+                                                <span
+                                                    key={index}
+                                                    className="flex items-center text-sm text-gray-600"
+                                                >
+                                                    <Star className="h-4 w-4 mr-1 text-yellow-500" />
+                                                    {relevance.score}
+                                                    <span className="ml-2 px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                                                        {relevance.search_key}
+                                                    </span>
+                                                </span>
+                                            )
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))}
