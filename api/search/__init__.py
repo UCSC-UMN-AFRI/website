@@ -65,7 +65,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )]
 
         acts_to_fetch = [item['act_num'] for item in search_items]
-        if len(acts_to_fetch) > 0:
+        if len(acts_to_fetch) == 0:
             return func.HttpResponse(
                 json.dumps([]),
                 mimetype="application/json",
