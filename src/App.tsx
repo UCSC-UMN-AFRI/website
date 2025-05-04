@@ -12,6 +12,7 @@ import {
     ChevronRight,
     Star,
 } from "lucide-react";
+import search_keys from "./keywords";
 
 interface LegislativeAct {
     act_num: string;
@@ -39,8 +40,10 @@ function App() {
     const [stateSearch, setStateSearch] = useState("");
     const [keywords, setKeywords] = useState<string[]>([]);
     const [currentKeyword, setCurrentKeyword] = useState("");
+    const [filteredKeywords, setFilteredKeywords] = useState<string[]>([]);
+    const [isKeywordDropdownOpen, setIsKeywordDropdownOpen] = useState(false);
+    const keywordDropdownRef = useRef<HTMLDivElement>(null);
     const [results, setResults] = useState<LegislativeAct[]>([]);
-    // const [isExactMatch, setIsExactMatch] = useState(false);
     const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
     const stateDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +60,12 @@ function App() {
                 !stateDropdownRef.current.contains(event.target as Node)
             ) {
                 setIsStateDropdownOpen(false);
+            }
+            if (
+                keywordDropdownRef.current &&
+                !keywordDropdownRef.current.contains(event.target as Node)
+            ) {
+                setIsKeywordDropdownOpen(false);
             }
         }
 
@@ -220,13 +229,33 @@ function App() {
         setIsStateDropdownOpen(false);
     };
 
-    const addKeyword = () => {
+    const filterKeywords = (input: string) => {
+        const filtered = search_keys.filter(
+            (keyword) =>
+                keyword.toLowerCase().includes(input.toLowerCase()) &&
+                !keywords.includes(keyword)
+        );
+        setFilteredKeywords(filtered);
+    };
+
+    const handleKeywordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setCurrentKeyword(value);
+        filterKeywords(value);
+        setIsKeywordDropdownOpen(true);
+    };
+
+    const addKeyword = (keyword?: string) => {
+        const keywordToAdd = keyword || currentKeyword.trim();
         if (
-            currentKeyword.trim() &&
-            !keywords.includes(currentKeyword.trim())
+            keywordToAdd &&
+            !keywords.includes(keywordToAdd) &&
+            search_keys.includes(keywordToAdd)
         ) {
-            setKeywords([...keywords, currentKeyword.trim()]);
+            setKeywords([...keywords, keywordToAdd]);
             setCurrentKeyword("");
+            setFilteredKeywords([]);
+            setIsKeywordDropdownOpen(false);
         }
     };
 
@@ -279,7 +308,7 @@ function App() {
                 <div className="bg-white rounded-lg shadow-md p-6 mb-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {/* Keyword Search */}
-                        <div className="space-y-2">
+                        <div className="space-y-2" ref={keywordDropdownRef}>
                             <label className="block text-sm font-medium text-gray-700">
                                 Keywords
                             </label>
@@ -288,20 +317,39 @@ function App() {
                                 <input
                                     type="text"
                                     value={currentKeyword}
-                                    onChange={(e) =>
-                                        setCurrentKeyword(e.target.value)
-                                    }
+                                    onChange={handleKeywordChange}
                                     onKeyPress={handleKeywordKeyPress}
+                                    onFocus={() =>
+                                        setIsKeywordDropdownOpen(true)
+                                    }
                                     className="pl-10 w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="Enter keyword..."
+                                    placeholder="Search keywords..."
                                 />
                                 <button
-                                    onClick={addKeyword}
+                                    onClick={() => addKeyword()}
                                     className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                 >
                                     <Plus className="h-5 w-5" />
                                 </button>
                             </div>
+                            {isKeywordDropdownOpen &&
+                                filteredKeywords.length > 0 && (
+                                    <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-60 overflow-auto">
+                                        <ul className="py-1">
+                                            {filteredKeywords.map((keyword) => (
+                                                <li
+                                                    key={keyword}
+                                                    className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-gray-900"
+                                                    onClick={() =>
+                                                        addKeyword(keyword)
+                                                    }
+                                                >
+                                                    {keyword}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
                             {/* Keywords Pills */}
                             <div className="flex flex-wrap gap-2 mt-2">
                                 {keywords.map((keyword) => (
@@ -325,23 +373,6 @@ function App() {
                                     </span>
                                 ))}
                             </div>
-                            {/* <div className="flex items-center mt-2">
-                                <input
-                                    type="checkbox"
-                                    id="exactMatch"
-                                    checked={isExactMatch}
-                                    onChange={(e) =>
-                                        setIsExactMatch(e.target.checked)
-                                    }
-                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <label
-                                    htmlFor="exactMatch"
-                                    className="ml-2 text-sm text-gray-600"
-                                >
-                                    Exact match only
-                                </label>
-                            </div> */}
                         </div>
 
                         {/* State Selection */}
