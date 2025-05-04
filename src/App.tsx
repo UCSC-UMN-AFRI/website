@@ -112,12 +112,12 @@ function App() {
         // Fetch total items first
         if (page === 1) {
             await fetchTotalItems();
-        }
 
-        if (totalItems === 0) {
-            setResults([]);
-            setIsLoading(false);
-            return;
+            if (totalItems === 0) {
+                setResults([]);
+                setIsLoading(false);
+                return;
+            }
         }
 
         // Then fetch the actual results
