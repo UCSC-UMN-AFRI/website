@@ -92,8 +92,10 @@ function App() {
             });
             const data: PaginationResponse = await response.json();
             setTotalItems(data.total);
+            return data.total;
         } catch (error) {
             console.error("Error fetching total items:", error);
+            return 0;
         }
     };
 
@@ -111,9 +113,8 @@ function App() {
         setCurrentPage(page);
         // Fetch total items first
         if (page === 1) {
-            await fetchTotalItems();
-
-            if (totalItems === 0) {
+            const total = await fetchTotalItems();
+            if (total === 0) {
                 setResults([]);
                 setIsLoading(false);
                 return;
