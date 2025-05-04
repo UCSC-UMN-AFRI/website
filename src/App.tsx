@@ -11,6 +11,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Star,
+    Loader2,
 } from "lucide-react";
 import search_keys from "./keywords";
 
@@ -46,6 +47,7 @@ function App() {
     const [results, setResults] = useState<LegislativeAct[]>([]);
     const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
     const stateDropdownRef = useRef<HTMLDivElement>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -105,6 +107,7 @@ function App() {
             return;
         }
 
+        setIsLoading(true);
         setCurrentPage(page);
         // Fetch total items first
         if (page === 1) {
@@ -113,6 +116,7 @@ function App() {
 
         if (totalItems === 0) {
             setResults([]);
+            setIsLoading(false);
             return;
         }
 
@@ -128,7 +132,6 @@ function App() {
                     from_year: yearRange.min,
                     to_year: yearRange.max,
                     search_keys: keywords,
-                    // exact_match: isExactMatch,
                     limit: itemsPerPage,
                     offset: (page - 1) * itemsPerPage,
                 }),
@@ -138,6 +141,8 @@ function App() {
         } catch (error) {
             console.error("Error fetching results:", error);
             setResults([]);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -528,14 +533,21 @@ function App() {
                         </div>
                         <button
                             onClick={() => handleSearch(1)}
-                            disabled={keywords.length === 0}
-                            className={`bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors ${
-                                keywords.length === 0
+                            disabled={keywords.length === 0 || isLoading}
+                            className={`bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors flex items-center space-x-2 ${
+                                keywords.length === 0 || isLoading
                                     ? "opacity-50 cursor-not-allowed"
                                     : ""
                             }`}
                         >
-                            Search
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span>Searching...</span>
+                                </>
+                            ) : (
+                                "Search"
+                            )}
                         </button>
                     </div>
                 </div>
@@ -558,75 +570,85 @@ function App() {
                             </p>
                         )}
                     </div>
-                    <div className="divide-y divide-gray-200">
-                        {results.map((result) => (
-                            <div
-                                key={result.act_num}
-                                className="p-6 hover:bg-gray-50"
-                            >
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <h3 className="text-lg font-medium text-gray-900">
-                                            <a
-                                                href={result.link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="hover:text-blue-600"
-                                            >
-                                                {result.name}
-                                            </a>
-                                        </h3>
-                                        <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
-                                            <span className="flex items-center">
-                                                <BookOpen className="h-4 w-4 mr-1" />
-                                                {result.act_num}
-                                            </span>
-                                            <span className="flex items-center">
-                                                <MapPin className="h-4 w-4 mr-1" />
-                                                {result.state}
-                                            </span>
-                                            <span className="flex items-center">
-                                                <Calendar className="h-4 w-4 mr-1" />
-                                                {result.year}
-                                            </span>
-                                            <span className="flex items-center">
+                    {isLoading ? (
+                        <div className="p-12 flex justify-center items-center">
+                            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-gray-200">
+                            {results.map((result) => (
+                                <div
+                                    key={result.act_num}
+                                    className="p-6 hover:bg-gray-50"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h3 className="text-lg font-medium text-gray-900">
                                                 <a
-                                                    href={result.backup_link}
+                                                    href={result.link}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="text-sm text-blue-600 hover:text-blue-800"
+                                                    className="hover:text-blue-600"
                                                 >
-                                                    PDF Backup
+                                                    {result.name}
                                                 </a>
-                                            </span>
+                                            </h3>
+                                            <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+                                                <span className="flex items-center">
+                                                    <BookOpen className="h-4 w-4 mr-1" />
+                                                    {result.act_num}
+                                                </span>
+                                                <span className="flex items-center">
+                                                    <MapPin className="h-4 w-4 mr-1" />
+                                                    {result.state}
+                                                </span>
+                                                <span className="flex items-center">
+                                                    <Calendar className="h-4 w-4 mr-1" />
+                                                    {result.year}
+                                                </span>
+                                                <span className="flex items-center">
+                                                    <a
+                                                        href={
+                                                            result.backup_link
+                                                        }
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-sm text-blue-600 hover:text-blue-800"
+                                                    >
+                                                        PDF Backup
+                                                    </a>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-end space-y-2">
+                                            {result.relevances.map(
+                                                (relevance, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className="flex items-center text-sm text-gray-600"
+                                                    >
+                                                        <Star className="h-4 w-4 mr-1 text-yellow-500" />
+                                                        {relevance.score}
+                                                        <span className="ml-2 px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                                                            {
+                                                                relevance.search_key
+                                                            }
+                                                        </span>
+                                                    </span>
+                                                )
+                                            )}
                                         </div>
                                     </div>
-                                    <div className="flex flex-col items-end space-y-2">
-                                        {result.relevances.map(
-                                            (relevance, index) => (
-                                                <span
-                                                    key={index}
-                                                    className="flex items-center text-sm text-gray-600"
-                                                >
-                                                    <Star className="h-4 w-4 mr-1 text-yellow-500" />
-                                                    {relevance.score}
-                                                    <span className="ml-2 px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                                                        {relevance.search_key}
-                                                    </span>
-                                                </span>
-                                            )
-                                        )}
-                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                        {results.length === 0 && (
-                            <div className="p-6 text-center text-gray-500">
-                                No results found. Try adjusting your search
-                                criteria.
-                            </div>
-                        )}
-                    </div>
+                            ))}
+                            {results.length === 0 && !isLoading && (
+                                <div className="p-6 text-center text-gray-500">
+                                    No results found. Try adjusting your search
+                                    criteria.
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Pagination */}
                     {totalPages > 1 && (
