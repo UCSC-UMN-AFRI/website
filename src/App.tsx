@@ -111,6 +111,11 @@ function App() {
             await fetchTotalItems();
         }
 
+        if (totalItems === 0) {
+            setResults([]);
+            return;
+        }
+
         // Then fetch the actual results
         try {
             const response = await fetch("api/search", {

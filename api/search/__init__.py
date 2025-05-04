@@ -65,6 +65,13 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )]
 
         acts_to_fetch = [item['act_num'] for item in search_items]
+        if len(acts_to_fetch) > 0:
+            return func.HttpResponse(
+                json.dumps([]),
+                mimetype="application/json",
+                status_code=200
+            )
+
         acts_items = acts.query_items(
             query=f"""SELECT * FROM c WHERE c.act_num IN ({','.join([f"'{act}'" for act in acts_to_fetch])})""",
             enable_cross_partition_query=True
