@@ -658,8 +658,10 @@ class LocalSemanticSimilaritySearch {
     private model: any = null;
     private isModelLoaded = false;
     private embeddingCache: Map<string, number[]> = new Map();
+    private totalExpectedKeywords: number = 0; // ADD THIS LINE
 
     constructor(keywords: string[]) {
+        this.totalExpectedKeywords = keywords.length; // ADD THIS LINE
         this.initializeModel().then(() => {
             this.initializeEmbeddings(keywords);
         });
@@ -871,7 +873,10 @@ class LocalSemanticSimilaritySearch {
     }
 
     public isInitialized(): boolean {
-        return this.keywordEmbeddings.size > 0;
+        return (
+            this.keywordEmbeddings.size === this.totalExpectedKeywords &&
+            this.totalExpectedKeywords > 0
+        );
     }
 
     public getModelStatus(): { loaded: boolean; embeddingsCount: number } {
