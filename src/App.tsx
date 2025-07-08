@@ -57,14 +57,14 @@ function App() {
 
     // Semantic search states
     const [isSemanticExpansionEnabled, setIsSemanticExpansionEnabled] =
-        useState(true);
+        useState(false);
     const [isModelLoading, setIsModelLoading] = useState(false);
     const [modelStatus, setModelStatus] = useState<{
         loaded: boolean;
         embeddingsCount: number;
     } | null>(null);
     const [expandedKeywords, setExpandedKeywords] = useState<string[]>([]);
-    const [semanticThreshold, setSemanticThreshold] = useState(0.4);
+    const [semanticThreshold, setSemanticThreshold] = useState(0.65);
     const [maxResults, setMaxResults] = useState(10);
 
     // Pagination states
