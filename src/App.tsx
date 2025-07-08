@@ -343,11 +343,7 @@ function App() {
 
     const addKeyword = (keyword?: string) => {
         const keywordToAdd = keyword || currentKeyword.trim();
-        if (
-            keywordToAdd &&
-            !keywords.includes(keywordToAdd) &&
-            search_keys.includes(keywordToAdd)
-        ) {
+        if (keywordToAdd && !keywords.includes(keywordToAdd)) {
             setKeywords([...keywords, keywordToAdd]);
             setCurrentKeyword("");
             setFilteredKeywords([]);
@@ -515,10 +511,8 @@ function App() {
                                 <div className="group relative">
                                     <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
                                     <div className="invisible group-hover:visible absolute z-20 w-64 p-2 mt-1 text-xs bg-gray-900 text-white rounded shadow-lg -translate-x-1/2 left-1/2">
-                                        Find semantically related keywords to
-                                        expand your search (e.g., "fish" will
-                                        also search for "fisheries",
-                                        "aquaculture", etc.)
+                                        Automatically finds related keywords to
+                                        expand your search
                                     </div>
                                 </div>
                             </div>

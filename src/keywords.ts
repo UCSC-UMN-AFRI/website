@@ -929,10 +929,10 @@ export async function getRelatedKeywords(
 
 /**
  * Expand multiple keywords to include semantically similar terms
- * @param keywords - Array of input keywords
+ * @param keywords - Array of input keywords (can include terms not in search_keys)
  * @param threshold - Minimum similarity score (default: 0.4)
  * @param maxResults - Maximum number of similar keywords to return per keyword (default: 10)
- * @returns Deduplicated array of all related keywords
+ * @returns Deduplicated array of all related keywords from the search_keys list
  */
 export async function getExpandedKeywords(
     keywords: string[],
@@ -948,13 +948,34 @@ export async function getExpandedKeywords(
     const expandedSet = new Set<string>();
 
     for (const keyword of keywords) {
-        const related = await getRelatedKeywords(
-            keyword,
-            threshold,
-            maxResults
-        );
-        for (const relatedKeyword of related) {
-            expandedSet.add(relatedKeyword);
+        // Check if keyword is in the official search_keys list
+        if (search_keys.includes(keyword)) {
+            // Official keyword - add it and find related terms
+            const related = await getRelatedKeywords(
+                keyword,
+                threshold,
+                maxResults
+            );
+            for (const relatedKeyword of related) {
+                expandedSet.add(relatedKeyword);
+            }
+        } else {
+            // External keyword - find similar terms from the official list
+            const similar = await similaritySearch.findSimilarKeywords(
+                keyword,
+                threshold,
+                maxResults
+            );
+
+            // Add the original keyword if it's useful for searching
+            expandedSet.add(keyword);
+
+            // Add similar keywords from the official list
+            for (const result of similar) {
+                if (search_keys.includes(result.keyword)) {
+                    expandedSet.add(result.keyword);
+                }
+            }
         }
     }
 
