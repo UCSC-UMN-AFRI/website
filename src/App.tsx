@@ -12,8 +12,14 @@ import {
     ChevronRight,
     Star,
     Loader2,
+    Brain,
+    Info,
 } from "lucide-react";
-import search_keys from "./keywords";
+import search_keys, {
+    initializeLocalSemanticSearch,
+    getExpandedKeywords,
+    getModelStatus,
+} from "./keywords";
 
 interface LegislativeAct {
     act_num: string;
@@ -49,11 +55,66 @@ function App() {
     const stateDropdownRef = useRef<HTMLDivElement>(null);
     const [isLoading, setIsLoading] = useState(false);
 
+    // Semantic search states
+    const [isSemanticExpansionEnabled, setIsSemanticExpansionEnabled] =
+        useState(true);
+    const [isModelLoading, setIsModelLoading] = useState(false);
+    const [modelStatus, setModelStatus] = useState<{
+        loaded: boolean;
+        embeddingsCount: number;
+    } | null>(null);
+    const [expandedKeywords, setExpandedKeywords] = useState<string[]>([]);
+
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+    // Initialize semantic search model on component mount
+    useEffect(() => {
+        const initializeModel = async () => {
+            setIsModelLoading(true);
+            try {
+                await initializeLocalSemanticSearch();
+                const status = getModelStatus();
+                setModelStatus(status);
+                console.log("Semantic search model initialized successfully");
+            } catch (error) {
+                console.error(
+                    "Failed to initialize semantic search model:",
+                    error
+                );
+            } finally {
+                setIsModelLoading(false);
+            }
+        };
+
+        initializeModel();
+    }, []);
+
+    // Update expanded keywords when semantic expansion is enabled and keywords change
+    useEffect(() => {
+        const updateExpandedKeywords = async () => {
+            if (
+                isSemanticExpansionEnabled &&
+                keywords.length > 0 &&
+                modelStatus?.loaded
+            ) {
+                try {
+                    const expanded = await getExpandedKeywords(keywords, 0.4);
+                    setExpandedKeywords(expanded);
+                } catch (error) {
+                    console.error("Error expanding keywords:", error);
+                    setExpandedKeywords(keywords);
+                }
+            } else {
+                setExpandedKeywords([]);
+            }
+        };
+
+        updateExpandedKeywords();
+    }, [keywords, isSemanticExpansionEnabled, modelStatus?.loaded]);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -78,6 +139,12 @@ function App() {
 
     const fetchTotalItems = async () => {
         try {
+            // Use expanded keywords if semantic expansion is enabled
+            const searchKeys =
+                isSemanticExpansionEnabled && expandedKeywords.length > 0
+                    ? expandedKeywords
+                    : keywords;
+
             const response = await fetch("api/pagination", {
                 method: "POST",
                 headers: {
@@ -87,7 +154,7 @@ function App() {
                     states: selectedStates,
                     from_year: yearRange.min,
                     to_year: yearRange.max,
-                    search_keys: keywords,
+                    search_keys: searchKeys,
                 }),
             });
             const data: PaginationResponse = await response.json();
@@ -123,6 +190,12 @@ function App() {
 
         // Then fetch the actual results
         try {
+            // Use expanded keywords if semantic expansion is enabled
+            const searchKeys =
+                isSemanticExpansionEnabled && expandedKeywords.length > 0
+                    ? expandedKeywords
+                    : keywords;
+
             const response = await fetch("api/search", {
                 method: "POST",
                 headers: {
@@ -132,7 +205,7 @@ function App() {
                     states: selectedStates,
                     from_year: yearRange.min,
                     to_year: yearRange.max,
-                    search_keys: keywords,
+                    search_keys: searchKeys,
                     limit: itemsPerPage,
                     offset: (page - 1) * itemsPerPage,
                 }),
@@ -361,6 +434,60 @@ function App() {
                                         </ul>
                                     </div>
                                 )}
+
+                            {/* Semantic Expansion Toggle */}
+                            <div className="flex items-center space-x-2 mt-3">
+                                <div className="flex items-center">
+                                    <input
+                                        id="semantic-expansion"
+                                        type="checkbox"
+                                        checked={isSemanticExpansionEnabled}
+                                        onChange={(e) =>
+                                            setIsSemanticExpansionEnabled(
+                                                e.target.checked
+                                            )
+                                        }
+                                        disabled={
+                                            !modelStatus?.loaded ||
+                                            isModelLoading
+                                        }
+                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                                    />
+                                    <label
+                                        htmlFor="semantic-expansion"
+                                        className="ml-2 text-sm text-gray-700"
+                                    >
+                                        <span className="flex items-center">
+                                            <Brain className="h-4 w-4 mr-1" />
+                                            Semantic expansion
+                                        </span>
+                                    </label>
+                                </div>
+                                {isModelLoading && (
+                                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                                )}
+                                <div className="group relative">
+                                    <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                                    <div className="invisible group-hover:visible absolute z-20 w-64 p-2 mt-1 text-xs bg-gray-900 text-white rounded shadow-lg -translate-x-1/2 left-1/2">
+                                        Find semantically related keywords to
+                                        expand your search (e.g., "fish" will
+                                        also search for "fisheries",
+                                        "aquaculture", etc.)
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Model Status */}
+                            {modelStatus && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                    Model:{" "}
+                                    {modelStatus.loaded
+                                        ? "✓ Ready"
+                                        : "⚠ Not loaded"}
+                                    ({modelStatus.embeddingsCount} keywords)
+                                </div>
+                            )}
+
                             {/* Keywords Pills */}
                             <div className="flex flex-wrap gap-2 mt-2">
                                 {keywords.map((keyword) => (
@@ -384,6 +511,37 @@ function App() {
                                     </span>
                                 ))}
                             </div>
+
+                            {/* Expanded Keywords Display */}
+                            {isSemanticExpansionEnabled &&
+                                expandedKeywords.length > keywords.length && (
+                                    <div className="mt-3 p-3 bg-blue-50 rounded-md">
+                                        <div className="text-sm font-medium text-blue-800 mb-2 flex items-center">
+                                            <Brain className="h-4 w-4 mr-1" />
+                                            Expanded search terms (
+                                            {expandedKeywords.length -
+                                                keywords.length}{" "}
+                                            additional):
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {expandedKeywords
+                                                .filter(
+                                                    (keyword) =>
+                                                        !keywords.includes(
+                                                            keyword
+                                                        )
+                                                )
+                                                .map((keyword) => (
+                                                    <span
+                                                        key={keyword}
+                                                        className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-200 text-blue-700"
+                                                    >
+                                                        {keyword}
+                                                    </span>
+                                                ))}
+                                        </div>
+                                    </div>
+                                )}
                         </div>
 
                         {/* State Selection */}

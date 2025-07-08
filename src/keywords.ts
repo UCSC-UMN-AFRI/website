@@ -646,4 +646,316 @@ const search_keys = [
     "foodstuffs",
 ];
 
+// Local semantic similarity search interface
+export interface SimilaritySearchResult {
+    keyword: string;
+    similarity: number;
+}
+
+// Local semantic similarity search using TensorFlow.js Universal Sentence Encoder
+class LocalSemanticSimilaritySearch {
+    private keywordEmbeddings: Map<string, number[]> = new Map();
+    private model: any = null;
+    private isModelLoaded = false;
+    private embeddingCache: Map<string, number[]> = new Map();
+
+    constructor(keywords: string[]) {
+        this.initializeModel().then(() => {
+            this.initializeEmbeddings(keywords);
+        });
+    }
+
+    private async initializeModel(): Promise<void> {
+        try {
+            // Dynamic import for browser compatibility
+            const tf = await import("@tensorflow/tfjs");
+            const use = await import(
+                "@tensorflow-models/universal-sentence-encoder"
+            );
+
+            console.log("Loading Universal Sentence Encoder model...");
+            this.model = await use.load();
+            this.isModelLoaded = true;
+            console.log("Model loaded successfully!");
+        } catch (error) {
+            console.error("Error loading TensorFlow.js model:", error);
+            console.log("Falling back to simple text similarity...");
+            this.isModelLoaded = false;
+        }
+    }
+
+    private async initializeEmbeddings(keywords: string[]): Promise<void> {
+        if (!this.isModelLoaded) {
+            console.log("Model not loaded, using fallback similarity...");
+            return;
+        }
+
+        console.log("Generating embeddings for keywords...");
+
+        // Process keywords in batches to avoid memory issues
+        const batchSize = 50;
+        for (let i = 0; i < keywords.length; i += batchSize) {
+            const batch = keywords.slice(i, i + batchSize);
+
+            try {
+                const cleanedTexts = batch.map((keyword) =>
+                    keyword.replace(/[_-]/g, " ").replace(/\s+/g, " ").trim()
+                );
+
+                const embeddings = await this.model.embed(cleanedTexts);
+                const embeddingArray = await embeddings.array();
+
+                batch.forEach((keyword, index) => {
+                    this.keywordEmbeddings.set(keyword, embeddingArray[index]);
+                });
+
+                embeddings.dispose(); // Clean up tensors
+                console.log(
+                    `Processed batch ${
+                        Math.floor(i / batchSize) + 1
+                    }/${Math.ceil(keywords.length / batchSize)}`
+                );
+            } catch (error) {
+                console.error(
+                    `Error processing batch ${i}-${i + batchSize}:`,
+                    error
+                );
+                // Add fallback embeddings for failed batch
+                batch.forEach((keyword) => {
+                    this.keywordEmbeddings.set(
+                        keyword,
+                        this.createFallbackEmbedding(keyword)
+                    );
+                });
+            }
+        }
+
+        console.log("All embeddings generated successfully!");
+    }
+
+    private createFallbackEmbedding(text: string): number[] {
+        // Simple character-based embedding as fallback
+        const embedding = new Array(512).fill(0);
+        const normalizedText = text.toLowerCase().replace(/[_-]/g, " ");
+
+        // Character frequency features
+        for (let i = 0; i < normalizedText.length && i < 100; i++) {
+            const charCode = normalizedText.charCodeAt(i);
+            embedding[charCode % 512] += 1;
+        }
+
+        // Word features
+        const words = normalizedText.split(/\s+/);
+        words.forEach((word, index) => {
+            if (index < 50) {
+                for (let i = 0; i < word.length; i++) {
+                    embedding[(word.charCodeAt(i) + index * 10) % 512] += 0.5;
+                }
+            }
+        });
+
+        // Normalize
+        const magnitude = Math.sqrt(
+            embedding.reduce((sum, val) => sum + val * val, 0)
+        );
+        if (magnitude > 0) {
+            for (let i = 0; i < embedding.length; i++) {
+                embedding[i] /= magnitude;
+            }
+        }
+
+        return embedding;
+    }
+
+    private async getEmbedding(text: string): Promise<number[]> {
+        // Check cache first
+        if (this.embeddingCache.has(text)) {
+            return this.embeddingCache.get(text)!;
+        }
+
+        if (!this.isModelLoaded || !this.model) {
+            // Use fallback embedding
+            const embedding = this.createFallbackEmbedding(text);
+            this.embeddingCache.set(text, embedding);
+            return embedding;
+        }
+
+        try {
+            const cleanText = text
+                .replace(/[_-]/g, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+            const embeddings = await this.model.embed([cleanText]);
+            const embeddingArray = await embeddings.array();
+            const embedding = embeddingArray[0];
+
+            embeddings.dispose(); // Clean up tensors
+
+            // Cache the embedding
+            this.embeddingCache.set(text, embedding);
+
+            return embedding;
+        } catch (error) {
+            console.error("Error getting embedding:", error);
+            // Fallback to simple embedding
+            const embedding = this.createFallbackEmbedding(text);
+            this.embeddingCache.set(text, embedding);
+            return embedding;
+        }
+    }
+
+    private cosineSimilarity(a: number[], b: number[]): number {
+        if (a.length !== b.length) return 0;
+
+        let dotProduct = 0;
+        let normA = 0;
+        let normB = 0;
+
+        for (let i = 0; i < a.length; i++) {
+            dotProduct += a[i] * b[i];
+            normA += a[i] * a[i];
+            normB += b[i] * b[i];
+        }
+
+        if (normA === 0 || normB === 0) return 0;
+        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    public async findSimilarKeywords(
+        keyword: string,
+        threshold: number = 0.5,
+        maxResults: number = 10
+    ): Promise<SimilaritySearchResult[]> {
+        try {
+            const queryEmbedding = await this.getEmbedding(keyword);
+            const similarities: SimilaritySearchResult[] = [];
+
+            for (const [candidateKeyword, candidateEmbedding] of this
+                .keywordEmbeddings) {
+                if (candidateKeyword === keyword) continue; // Skip exact match
+
+                const similarity = this.cosineSimilarity(
+                    queryEmbedding,
+                    candidateEmbedding
+                );
+
+                if (similarity >= threshold) {
+                    similarities.push({
+                        keyword: candidateKeyword,
+                        similarity: similarity,
+                    });
+                }
+            }
+
+            // Sort by similarity score (descending) and limit results
+            return similarities
+                .sort((a, b) => b.similarity - a.similarity)
+                .slice(0, maxResults);
+        } catch (error) {
+            console.error("Error in semantic similarity search:", error);
+            return [];
+        }
+    }
+
+    public async findRelatedKeywords(
+        keyword: string,
+        threshold: number = 0.4
+    ): Promise<string[]> {
+        const similar = await this.findSimilarKeywords(keyword, threshold);
+        return [keyword, ...similar.map((result) => result.keyword)];
+    }
+
+    public isInitialized(): boolean {
+        return this.keywordEmbeddings.size > 0;
+    }
+
+    public getModelStatus(): { loaded: boolean; embeddingsCount: number } {
+        return {
+            loaded: this.isModelLoaded,
+            embeddingsCount: this.keywordEmbeddings.size,
+        };
+    }
+}
+
+// Global instance
+let similaritySearch: LocalSemanticSimilaritySearch | null = null;
+
+/**
+ * Initialize the local semantic similarity search
+ * This automatically loads the TensorFlow.js Universal Sentence Encoder model
+ */
+export async function initializeLocalSemanticSearch(): Promise<void> {
+    if (similaritySearch) {
+        console.log("Semantic search already initialized");
+        return;
+    }
+
+    console.log("Initializing local semantic search...");
+    similaritySearch = new LocalSemanticSimilaritySearch(search_keys);
+
+    // Wait for initialization to complete
+    while (!similaritySearch.isInitialized()) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    console.log("Local semantic search initialized successfully!");
+}
+
+/**
+ * Get related keywords including the original keyword and semantically similar ones
+ * @param keyword - The input keyword
+ * @param threshold - Minimum similarity score (default: 0.4)
+ * @returns Array of related keywords
+ */
+export async function getRelatedKeywords(
+    keyword: string,
+    threshold: number = 0.4
+): Promise<string[]> {
+    if (!similaritySearch) {
+        throw new Error(
+            "Local semantic search not initialized. Call initializeLocalSemanticSearch() first."
+        );
+    }
+
+    return similaritySearch.findRelatedKeywords(keyword, threshold);
+}
+
+/**
+ * Expand multiple keywords to include semantically similar terms
+ * @param keywords - Array of input keywords
+ * @param threshold - Minimum similarity score (default: 0.4)
+ * @returns Deduplicated array of all related keywords
+ */
+export async function getExpandedKeywords(
+    keywords: string[],
+    threshold: number = 0.4
+): Promise<string[]> {
+    if (!similaritySearch) {
+        throw new Error(
+            "Local semantic search not initialized. Call initializeLocalSemanticSearch() first."
+        );
+    }
+
+    const expandedSet = new Set<string>();
+
+    for (const keyword of keywords) {
+        const related = await getRelatedKeywords(keyword, threshold);
+        for (const relatedKeyword of related) {
+            expandedSet.add(relatedKeyword);
+        }
+    }
+
+    return Array.from(expandedSet);
+}
+
+/**
+ * Get status of the local model
+ */
+export function getModelStatus(): {
+    loaded: boolean;
+    embeddingsCount: number;
+} | null {
+    return similaritySearch ? similaritySearch.getModelStatus() : null;
+}
+
 export default search_keys;
