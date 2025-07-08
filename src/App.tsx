@@ -65,6 +65,7 @@ function App() {
     } | null>(null);
     const [expandedKeywords, setExpandedKeywords] = useState<string[]>([]);
     const [semanticThreshold, setSemanticThreshold] = useState(0.4);
+    const [maxResults, setMaxResults] = useState(10);
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -105,7 +106,8 @@ function App() {
                 try {
                     const expanded = await getExpandedKeywords(
                         keywords,
-                        semanticThreshold
+                        semanticThreshold,
+                        maxResults
                     );
                     setExpandedKeywords(expanded);
                 } catch (error) {
@@ -123,6 +125,7 @@ function App() {
         isSemanticExpansionEnabled,
         modelStatus?.loaded,
         semanticThreshold,
+        maxResults,
     ]);
 
     useEffect(() => {
@@ -522,40 +525,77 @@ function App() {
 
                             {/* Similarity Threshold Slider */}
                             {isSemanticExpansionEnabled && (
-                                <div className="mt-3 space-y-2">
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Similarity threshold:{" "}
-                                        {semanticThreshold.toFixed(2)}
-                                    </label>
-                                    <div className="flex items-center space-x-3">
-                                        <span className="text-xs text-gray-500">
-                                            Broad
-                                        </span>
-                                        <input
-                                            type="range"
-                                            min="0.1"
-                                            max="0.8"
-                                            step="0.05"
-                                            value={semanticThreshold}
-                                            onChange={(e) =>
-                                                setSemanticThreshold(
-                                                    parseFloat(e.target.value)
-                                                )
-                                            }
-                                            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                                            disabled={
-                                                !modelStatus?.loaded ||
-                                                isModelLoading
-                                            }
-                                        />
-                                        <span className="text-xs text-gray-500">
-                                            Strict
-                                        </span>
+                                <div className="mt-3 space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Similarity threshold:{" "}
+                                            {semanticThreshold.toFixed(2)}
+                                        </label>
+                                        <div className="flex items-center space-x-3">
+                                            <span className="text-xs text-gray-500">
+                                                Broad
+                                            </span>
+                                            <input
+                                                type="range"
+                                                min="0.1"
+                                                max="0.8"
+                                                step="0.05"
+                                                value={semanticThreshold}
+                                                onChange={(e) =>
+                                                    setSemanticThreshold(
+                                                        parseFloat(
+                                                            e.target.value
+                                                        )
+                                                    )
+                                                }
+                                                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                                                disabled={
+                                                    !modelStatus?.loaded ||
+                                                    isModelLoading
+                                                }
+                                            />
+                                            <span className="text-xs text-gray-500">
+                                                Strict
+                                            </span>
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                            Lower values = more but less similar
+                                            keywords • Higher values = fewer but
+                                            more similar keywords
+                                        </div>
                                     </div>
-                                    <div className="text-xs text-gray-500">
-                                        Lower values = more but less similar
-                                        keywords • Higher values = fewer but
-                                        more similar keywords
+
+                                    {/* Max Results Control */}
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Max similar keywords per term:
+                                        </label>
+                                        <div className="flex items-center space-x-3">
+                                            <select
+                                                value={maxResults}
+                                                onChange={(e) =>
+                                                    setMaxResults(
+                                                        parseInt(e.target.value)
+                                                    )
+                                                }
+                                                disabled={
+                                                    !modelStatus?.loaded ||
+                                                    isModelLoading
+                                                }
+                                                className="rounded-md border border-gray-300 py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                <option value={5}>5</option>
+                                                <option value={10}>10</option>
+                                                <option value={20}>20</option>
+                                                <option value={50}>50</option>
+                                                <option value={100}>100</option>
+                                            </select>
+                                            <div className="text-xs text-gray-500">
+                                                Controls how many similar
+                                                keywords to find for each search
+                                                term
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}

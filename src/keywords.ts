@@ -668,6 +668,7 @@ class LocalSemanticSimilaritySearch {
     private async initializeModel(): Promise<void> {
         try {
             // Dynamic import for browser compatibility
+            await import("@tensorflow/tfjs");
             const use = await import(
                 "@tensorflow-models/universal-sentence-encoder"
             );
@@ -858,9 +859,14 @@ class LocalSemanticSimilaritySearch {
 
     public async findRelatedKeywords(
         keyword: string,
-        threshold: number = 0.4
+        threshold: number = 0.4,
+        maxResults: number = 10
     ): Promise<string[]> {
-        const similar = await this.findSimilarKeywords(keyword, threshold);
+        const similar = await this.findSimilarKeywords(
+            keyword,
+            threshold,
+            maxResults
+        );
         return [keyword, ...similar.map((result) => result.keyword)];
     }
 
@@ -904,11 +910,13 @@ export async function initializeLocalSemanticSearch(): Promise<void> {
  * Get related keywords including the original keyword and semantically similar ones
  * @param keyword - The input keyword
  * @param threshold - Minimum similarity score (default: 0.4)
+ * @param maxResults - Maximum number of similar keywords to return per keyword (default: 10)
  * @returns Array of related keywords
  */
 export async function getRelatedKeywords(
     keyword: string,
-    threshold: number = 0.4
+    threshold: number = 0.4,
+    maxResults: number = 10
 ): Promise<string[]> {
     if (!similaritySearch) {
         throw new Error(
@@ -916,18 +924,20 @@ export async function getRelatedKeywords(
         );
     }
 
-    return similaritySearch.findRelatedKeywords(keyword, threshold);
+    return similaritySearch.findRelatedKeywords(keyword, threshold, maxResults);
 }
 
 /**
  * Expand multiple keywords to include semantically similar terms
  * @param keywords - Array of input keywords
  * @param threshold - Minimum similarity score (default: 0.4)
+ * @param maxResults - Maximum number of similar keywords to return per keyword (default: 10)
  * @returns Deduplicated array of all related keywords
  */
 export async function getExpandedKeywords(
     keywords: string[],
-    threshold: number = 0.4
+    threshold: number = 0.4,
+    maxResults: number = 10
 ): Promise<string[]> {
     if (!similaritySearch) {
         throw new Error(
@@ -938,7 +948,11 @@ export async function getExpandedKeywords(
     const expandedSet = new Set<string>();
 
     for (const keyword of keywords) {
-        const related = await getRelatedKeywords(keyword, threshold);
+        const related = await getRelatedKeywords(
+            keyword,
+            threshold,
+            maxResults
+        );
         for (const relatedKeyword of related) {
             expandedSet.add(relatedKeyword);
         }
