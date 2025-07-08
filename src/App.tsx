@@ -64,6 +64,7 @@ function App() {
         embeddingsCount: number;
     } | null>(null);
     const [expandedKeywords, setExpandedKeywords] = useState<string[]>([]);
+    const [semanticThreshold, setSemanticThreshold] = useState(0.4);
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -102,7 +103,10 @@ function App() {
                 modelStatus?.loaded
             ) {
                 try {
-                    const expanded = await getExpandedKeywords(keywords, 0.4);
+                    const expanded = await getExpandedKeywords(
+                        keywords,
+                        semanticThreshold
+                    );
                     setExpandedKeywords(expanded);
                 } catch (error) {
                     console.error("Error expanding keywords:", error);
@@ -114,7 +118,12 @@ function App() {
         };
 
         updateExpandedKeywords();
-    }, [keywords, isSemanticExpansionEnabled, modelStatus?.loaded]);
+    }, [
+        keywords,
+        isSemanticExpansionEnabled,
+        modelStatus?.loaded,
+        semanticThreshold,
+    ]);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -378,6 +387,40 @@ function App() {
 
     return (
         <div className="min-h-screen bg-gray-50">
+            <style>
+                {`
+                    .slider::-webkit-slider-thumb {
+                        appearance: none;
+                        height: 16px;
+                        width: 16px;
+                        border-radius: 50%;
+                        background: #3b82f6;
+                        cursor: pointer;
+                        border: 2px solid #ffffff;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                    }
+
+                    .slider::-moz-range-thumb {
+                        height: 16px;
+                        width: 16px;
+                        border-radius: 50%;
+                        background: #3b82f6;
+                        cursor: pointer;
+                        border: 2px solid #ffffff;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                    }
+
+                    .slider:disabled::-webkit-slider-thumb {
+                        background: #9ca3af;
+                        cursor: not-allowed;
+                    }
+
+                    .slider:disabled::-moz-range-thumb {
+                        background: #9ca3af;
+                        cursor: not-allowed;
+                    }
+                `}
+            </style>
             {/* Header */}
             <header className="bg-white shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 py-6">
@@ -476,6 +519,46 @@ function App() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Similarity Threshold Slider */}
+                            {isSemanticExpansionEnabled && (
+                                <div className="mt-3 space-y-2">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Similarity threshold:{" "}
+                                        {semanticThreshold.toFixed(2)}
+                                    </label>
+                                    <div className="flex items-center space-x-3">
+                                        <span className="text-xs text-gray-500">
+                                            Broad
+                                        </span>
+                                        <input
+                                            type="range"
+                                            min="0.1"
+                                            max="0.8"
+                                            step="0.05"
+                                            value={semanticThreshold}
+                                            onChange={(e) =>
+                                                setSemanticThreshold(
+                                                    parseFloat(e.target.value)
+                                                )
+                                            }
+                                            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                                            disabled={
+                                                !modelStatus?.loaded ||
+                                                isModelLoading
+                                            }
+                                        />
+                                        <span className="text-xs text-gray-500">
+                                            Strict
+                                        </span>
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                        Lower values = more but less similar
+                                        keywords • Higher values = fewer but
+                                        more similar keywords
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Model Status */}
                             {modelStatus && (

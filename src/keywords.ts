@@ -668,7 +668,6 @@ class LocalSemanticSimilaritySearch {
     private async initializeModel(): Promise<void> {
         try {
             // Dynamic import for browser compatibility
-            const tf = await import("@tensorflow/tfjs");
             const use = await import(
                 "@tensorflow-models/universal-sentence-encoder"
             );
