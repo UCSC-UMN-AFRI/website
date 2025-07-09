@@ -652,16 +652,30 @@ export interface SimilaritySearchResult {
     similarity: number;
 }
 
+// Progress tracking interface
+export interface EmbeddingProgress {
+    stage: "model_loading" | "embedding_generation" | "complete";
+    processed: number;
+    total: number;
+    percentage: number;
+    message?: string;
+}
+
 // Local semantic similarity search using TensorFlow.js Universal Sentence Encoder
 class LocalSemanticSimilaritySearch {
     private keywordEmbeddings: Map<string, number[]> = new Map();
     private model: any = null;
     private isModelLoaded = false;
     private embeddingCache: Map<string, number[]> = new Map();
-    private totalExpectedKeywords: number = 0; // ADD THIS LINE
+    private totalExpectedKeywords: number = 0;
+    private progressCallback?: (progress: EmbeddingProgress) => void;
 
-    constructor(keywords: string[]) {
-        this.totalExpectedKeywords = keywords.length; // ADD THIS LINE
+    constructor(
+        keywords: string[],
+        progressCallback?: (progress: EmbeddingProgress) => void
+    ) {
+        this.totalExpectedKeywords = keywords.length;
+        this.progressCallback = progressCallback;
         this.initializeModel().then(() => {
             this.initializeEmbeddings(keywords);
         });
@@ -669,6 +683,15 @@ class LocalSemanticSimilaritySearch {
 
     private async initializeModel(): Promise<void> {
         try {
+            // Report model loading start
+            this.progressCallback?.({
+                stage: "model_loading",
+                processed: 0,
+                total: 1,
+                percentage: 0,
+                message: "Loading TensorFlow model...",
+            });
+
             // Dynamic import for browser compatibility
             await import("@tensorflow/tfjs");
             const use = await import(
@@ -679,16 +702,41 @@ class LocalSemanticSimilaritySearch {
             this.model = await use.load();
             this.isModelLoaded = true;
             console.log("Model loaded successfully!");
+
+            // Report model loading complete
+            this.progressCallback?.({
+                stage: "model_loading",
+                processed: 1,
+                total: 1,
+                percentage: 100,
+                message: "Model loaded successfully!",
+            });
         } catch (error) {
             console.error("Error loading TensorFlow.js model:", error);
             console.log("Falling back to simple text similarity...");
             this.isModelLoaded = false;
+
+            // Report model loading failure
+            this.progressCallback?.({
+                stage: "model_loading",
+                processed: 1,
+                total: 1,
+                percentage: 100,
+                message: "Model loading failed, using fallback similarity",
+            });
         }
     }
 
     private async initializeEmbeddings(keywords: string[]): Promise<void> {
         if (!this.isModelLoaded) {
             console.log("Model not loaded, using fallback similarity...");
+            this.progressCallback?.({
+                stage: "complete",
+                processed: keywords.length,
+                total: keywords.length,
+                percentage: 100,
+                message: "Using fallback similarity (no model loaded)",
+            });
             return;
         }
 
@@ -696,8 +744,21 @@ class LocalSemanticSimilaritySearch {
 
         // Process keywords in batches to avoid memory issues
         const batchSize = 50;
+        const totalBatches = Math.ceil(keywords.length / batchSize);
+
         for (let i = 0; i < keywords.length; i += batchSize) {
             const batch = keywords.slice(i, i + batchSize);
+            const currentBatch = Math.floor(i / batchSize) + 1;
+            const processedKeywords = Math.min(i + batchSize, keywords.length);
+
+            // Report progress before processing batch
+            this.progressCallback?.({
+                stage: "embedding_generation",
+                processed: i,
+                total: keywords.length,
+                percentage: Math.round((i / keywords.length) * 100),
+                message: "Generating embeddings...",
+            });
 
             try {
                 const cleanedTexts = batch.map((keyword) =>
@@ -712,11 +773,18 @@ class LocalSemanticSimilaritySearch {
                 });
 
                 embeddings.dispose(); // Clean up tensors
-                console.log(
-                    `Processed batch ${
-                        Math.floor(i / batchSize) + 1
-                    }/${Math.ceil(keywords.length / batchSize)}`
-                );
+                console.log(`Processed batch ${currentBatch}/${totalBatches}`);
+
+                // Report progress after processing batch
+                this.progressCallback?.({
+                    stage: "embedding_generation",
+                    processed: processedKeywords,
+                    total: keywords.length,
+                    percentage: Math.round(
+                        (processedKeywords / keywords.length) * 100
+                    ),
+                    message: "Generating embeddings...",
+                });
             } catch (error) {
                 console.error(
                     `Error processing batch ${i}-${i + batchSize}:`,
@@ -729,10 +797,30 @@ class LocalSemanticSimilaritySearch {
                         this.createFallbackEmbedding(keyword)
                     );
                 });
+
+                // Report progress even for failed batch
+                this.progressCallback?.({
+                    stage: "embedding_generation",
+                    processed: processedKeywords,
+                    total: keywords.length,
+                    percentage: Math.round(
+                        (processedKeywords / keywords.length) * 100
+                    ),
+                    message: "Generating embeddings (using fallback)...",
+                });
             }
         }
 
         console.log("All embeddings generated successfully!");
+
+        // Report completion
+        this.progressCallback?.({
+            stage: "complete",
+            processed: keywords.length,
+            total: keywords.length,
+            percentage: 100,
+            message: "Ready",
+        });
     }
 
     private createFallbackEmbedding(text: string): number[] {
@@ -894,14 +982,19 @@ let similaritySearch: LocalSemanticSimilaritySearch | null = null;
  * Initialize the local semantic similarity search
  * This automatically loads the TensorFlow.js Universal Sentence Encoder model
  */
-export async function initializeLocalSemanticSearch(): Promise<void> {
+export async function initializeLocalSemanticSearch(
+    progressCallback?: (progress: EmbeddingProgress) => void
+): Promise<void> {
     if (similaritySearch) {
         console.log("Semantic search already initialized");
         return;
     }
 
     console.log("Initializing local semantic search...");
-    similaritySearch = new LocalSemanticSimilaritySearch(search_keys);
+    similaritySearch = new LocalSemanticSimilaritySearch(
+        search_keys,
+        progressCallback
+    );
 
     // Wait for initialization to complete
     while (!similaritySearch.isInitialized()) {

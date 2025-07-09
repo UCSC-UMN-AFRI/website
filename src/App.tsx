@@ -19,6 +19,7 @@ import search_keys, {
     initializeLocalSemanticSearch,
     getExpandedKeywords,
     getModelStatus,
+    EmbeddingProgress,
 } from "./keywords";
 
 interface LegislativeAct {
@@ -67,6 +68,10 @@ function App() {
     const [semanticThreshold, setSemanticThreshold] = useState(0.65);
     const [maxResults, setMaxResults] = useState(10);
 
+    // Progress tracking states
+    const [embeddingProgress, setEmbeddingProgress] =
+        useState<EmbeddingProgress | null>(null);
+
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
@@ -78,7 +83,18 @@ function App() {
         const initializeModel = async () => {
             setIsModelLoading(true);
             try {
-                await initializeLocalSemanticSearch();
+                await initializeLocalSemanticSearch((progress) => {
+                    setEmbeddingProgress(progress);
+                    // Update model status periodically
+                    const status = getModelStatus();
+                    setModelStatus(status);
+
+                    // Only set loading to false when truly complete
+                    if (progress.stage === "complete") {
+                        setIsModelLoading(false);
+                        setEmbeddingProgress(null); // Clear progress when done
+                    }
+                });
                 const status = getModelStatus();
                 setModelStatus(status);
                 console.log("Semantic search model initialized successfully");
@@ -87,8 +103,8 @@ function App() {
                     "Failed to initialize semantic search model:",
                     error
                 );
-            } finally {
                 setIsModelLoading(false);
+                setEmbeddingProgress(null);
             }
         };
 
@@ -491,7 +507,10 @@ function App() {
                                         }
                                         disabled={
                                             !modelStatus?.loaded ||
-                                            isModelLoading
+                                            isModelLoading ||
+                                            (embeddingProgress !== null &&
+                                                embeddingProgress.stage !==
+                                                    "complete")
                                         }
                                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
                                     />
@@ -505,7 +524,10 @@ function App() {
                                         </span>
                                     </label>
                                 </div>
-                                {isModelLoading && (
+                                {(isModelLoading ||
+                                    (embeddingProgress !== null &&
+                                        embeddingProgress.stage !==
+                                            "complete")) && (
                                     <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                                 )}
                                 <div className="group relative">
@@ -545,7 +567,11 @@ function App() {
                                                 className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                                                 disabled={
                                                     !modelStatus?.loaded ||
-                                                    isModelLoading
+                                                    isModelLoading ||
+                                                    (embeddingProgress !==
+                                                        null &&
+                                                        embeddingProgress.stage !==
+                                                            "complete")
                                                 }
                                             />
                                             <span className="text-xs text-gray-500">
@@ -574,7 +600,11 @@ function App() {
                                                 }
                                                 disabled={
                                                     !modelStatus?.loaded ||
-                                                    isModelLoading
+                                                    isModelLoading ||
+                                                    (embeddingProgress !==
+                                                        null &&
+                                                        embeddingProgress.stage !==
+                                                            "complete")
                                                 }
                                                 className="rounded-md border border-gray-300 py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
@@ -594,16 +624,28 @@ function App() {
                                 </div>
                             )}
 
-                            {/* Model Status */}
-                            {modelStatus && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                    Model:{" "}
-                                    {modelStatus.loaded
-                                        ? "✓ Ready"
-                                        : "⚠ Not loaded"}
-                                    ({modelStatus.embeddingsCount} keywords)
-                                </div>
-                            )}
+                            {/* Progress Bar */}
+                            {embeddingProgress &&
+                                embeddingProgress.stage !== "complete" && (
+                                    <div className="mt-3 space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-medium text-blue-700">
+                                                {embeddingProgress.message}
+                                            </span>
+                                            <span className="text-xs text-blue-600">
+                                                {embeddingProgress.percentage}%
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2">
+                                            <div
+                                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                                style={{
+                                                    width: `${embeddingProgress.percentage}%`,
+                                                }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                )}
 
                             {/* Keywords Pills */}
                             <div className="flex flex-wrap gap-2 mt-2">
