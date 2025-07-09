@@ -140,7 +140,16 @@ def find_similar_keywords(query: str, threshold: float = 0.4, max_results: int =
                     query_idx = i
                     break
 
-        # If not found, use simple text embedding
+        # If not found, try to find a keyword that contains the query as substring
+        if query_embedding is None:
+            for i, keyword in enumerate(keywords):
+                if query_lower in keyword.lower() or keyword.lower().startswith(query_lower):
+                    query_embedding = keyword_embeddings[i]
+                    query_idx = i
+                    logging.info(f"Using embedding from similar keyword '{keyword}' for query '{query}'")
+                    break
+
+        # If still not found, use simple text embedding as fallback
         if query_embedding is None:
             query_embedding = simple_text_embedding(query, keyword_embeddings.shape[1])
 
