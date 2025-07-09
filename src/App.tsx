@@ -18,8 +18,6 @@ import {
 import search_keys, {
     initializeLocalSemanticSearch,
     getExpandedKeywords,
-    getModelStatus,
-    EmbeddingProgress,
 } from "./keywords";
 
 interface LegislativeAct {
@@ -59,18 +57,14 @@ function App() {
     // Semantic search states
     const [isSemanticExpansionEnabled, setIsSemanticExpansionEnabled] =
         useState(false);
-    const [isModelLoading, setIsModelLoading] = useState(false);
-    const [modelStatus, setModelStatus] = useState<{
-        loaded: boolean;
-        embeddingsCount: number;
-    } | null>(null);
     const [expandedKeywords, setExpandedKeywords] = useState<string[]>([]);
     const [semanticThreshold, setSemanticThreshold] = useState(0.65);
+    const [debouncedSemanticThreshold, setDebouncedSemanticThreshold] =
+        useState(0.65);
     const [maxResults, setMaxResults] = useState(10);
-
-    // Progress tracking states
-    const [embeddingProgress, setEmbeddingProgress] =
-        useState<EmbeddingProgress | null>(null);
+    const [debouncedMaxResults, setDebouncedMaxResults] = useState(10);
+    const [isSemanticSearchPending, setIsSemanticSearchPending] =
+        useState(false);
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -78,52 +72,48 @@ function App() {
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
-    // Initialize semantic search model on component mount
+    // Initialize semantic search (server-side is always ready)
     useEffect(() => {
-        const initializeModel = async () => {
-            setIsModelLoading(true);
-            try {
-                await initializeLocalSemanticSearch((progress) => {
-                    setEmbeddingProgress(progress);
-                    // Update model status periodically
-                    const status = getModelStatus();
-                    setModelStatus(status);
-
-                    // Only set loading to false when truly complete
-                    if (progress.stage === "complete") {
-                        setIsModelLoading(false);
-                        setEmbeddingProgress(null); // Clear progress when done
-                    }
-                });
-                const status = getModelStatus();
-                setModelStatus(status);
-                console.log("Semantic search model initialized successfully");
-            } catch (error) {
-                console.error(
-                    "Failed to initialize semantic search model:",
-                    error
-                );
-                setIsModelLoading(false);
-                setEmbeddingProgress(null);
-            }
-        };
-
-        initializeModel();
+        initializeLocalSemanticSearch();
     }, []);
+
+    // Debounce semantic threshold changes to avoid excessive API calls
+    useEffect(() => {
+        if (semanticThreshold !== debouncedSemanticThreshold) {
+            setIsSemanticSearchPending(true);
+        }
+
+        const timer = setTimeout(() => {
+            setDebouncedSemanticThreshold(semanticThreshold);
+            setIsSemanticSearchPending(false);
+        }, 750); // 750ms delay
+
+        return () => clearTimeout(timer);
+    }, [semanticThreshold, debouncedSemanticThreshold]);
+
+    // Debounce max results changes to avoid excessive API calls
+    useEffect(() => {
+        if (maxResults !== debouncedMaxResults) {
+            setIsSemanticSearchPending(true);
+        }
+
+        const timer = setTimeout(() => {
+            setDebouncedMaxResults(maxResults);
+            setIsSemanticSearchPending(false);
+        }, 750); // 750ms delay
+
+        return () => clearTimeout(timer);
+    }, [maxResults, debouncedMaxResults]);
 
     // Update expanded keywords when semantic expansion is enabled and keywords change
     useEffect(() => {
         const updateExpandedKeywords = async () => {
-            if (
-                isSemanticExpansionEnabled &&
-                keywords.length > 0 &&
-                modelStatus?.loaded
-            ) {
+            if (isSemanticExpansionEnabled && keywords.length > 0) {
                 try {
                     const expanded = await getExpandedKeywords(
                         keywords,
-                        semanticThreshold,
-                        maxResults
+                        debouncedSemanticThreshold,
+                        debouncedMaxResults
                     );
                     setExpandedKeywords(expanded);
                 } catch (error) {
@@ -139,9 +129,8 @@ function App() {
     }, [
         keywords,
         isSemanticExpansionEnabled,
-        modelStatus?.loaded,
-        semanticThreshold,
-        maxResults,
+        debouncedSemanticThreshold,
+        debouncedMaxResults,
     ]);
 
     useEffect(() => {
@@ -505,13 +494,7 @@ function App() {
                                                 e.target.checked
                                             )
                                         }
-                                        disabled={
-                                            !modelStatus?.loaded ||
-                                            isModelLoading ||
-                                            (embeddingProgress !== null &&
-                                                embeddingProgress.stage !==
-                                                    "complete")
-                                        }
+                                        disabled={false}
                                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
                                     />
                                     <label
@@ -523,13 +506,12 @@ function App() {
                                             Semantic expansion
                                         </span>
                                     </label>
+                                    {isSemanticSearchPending &&
+                                        isSemanticExpansionEnabled && (
+                                            <Loader2 className="h-4 w-4 animate-spin text-blue-600 ml-2" />
+                                        )}
                                 </div>
-                                {(isModelLoading ||
-                                    (embeddingProgress !== null &&
-                                        embeddingProgress.stage !==
-                                            "complete")) && (
-                                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                                )}
+
                                 <div className="group relative">
                                     <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
                                     <div className="invisible group-hover:visible absolute z-20 w-64 p-2 mt-1 text-xs bg-gray-900 text-white rounded shadow-lg -translate-x-1/2 left-1/2">
@@ -565,14 +547,7 @@ function App() {
                                                     )
                                                 }
                                                 className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                                                disabled={
-                                                    !modelStatus?.loaded ||
-                                                    isModelLoading ||
-                                                    (embeddingProgress !==
-                                                        null &&
-                                                        embeddingProgress.stage !==
-                                                            "complete")
-                                                }
+                                                disabled={false}
                                             />
                                             <span className="text-xs text-gray-500">
                                                 Strict
@@ -598,14 +573,7 @@ function App() {
                                                         parseInt(e.target.value)
                                                     )
                                                 }
-                                                disabled={
-                                                    !modelStatus?.loaded ||
-                                                    isModelLoading ||
-                                                    (embeddingProgress !==
-                                                        null &&
-                                                        embeddingProgress.stage !==
-                                                            "complete")
-                                                }
+                                                disabled={false}
                                                 className="rounded-md border border-gray-300 py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 <option value={5}>5</option>
@@ -623,29 +591,6 @@ function App() {
                                     </div>
                                 </div>
                             )}
-
-                            {/* Progress Bar */}
-                            {embeddingProgress &&
-                                embeddingProgress.stage !== "complete" && (
-                                    <div className="mt-3 space-y-2">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs font-medium text-blue-700">
-                                                {embeddingProgress.message}
-                                            </span>
-                                            <span className="text-xs text-blue-600">
-                                                {embeddingProgress.percentage}%
-                                            </span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-2">
-                                            <div
-                                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                                                style={{
-                                                    width: `${embeddingProgress.percentage}%`,
-                                                }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                )}
 
                             {/* Keywords Pills */}
                             <div className="flex flex-wrap gap-2 mt-2">

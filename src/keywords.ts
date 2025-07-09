@@ -646,369 +646,68 @@ const search_keys = [
     "foodstuffs",
 ];
 
-// Local semantic similarity search interface
+// Server-side semantic search API client
 export interface SimilaritySearchResult {
     keyword: string;
     similarity: number;
 }
 
-// Progress tracking interface
-export interface EmbeddingProgress {
-    stage: "model_loading" | "embedding_generation" | "complete";
-    processed: number;
-    total: number;
-    percentage: number;
-    message?: string;
-}
-
-// Local semantic similarity search using TensorFlow.js Universal Sentence Encoder
-class LocalSemanticSimilaritySearch {
-    private keywordEmbeddings: Map<string, number[]> = new Map();
-    private model: any = null;
-    private isModelLoaded = false;
-    private embeddingCache: Map<string, number[]> = new Map();
-    private totalExpectedKeywords: number = 0;
-    private progressCallback?: (progress: EmbeddingProgress) => void;
-
-    constructor(
-        keywords: string[],
-        progressCallback?: (progress: EmbeddingProgress) => void
-    ) {
-        this.totalExpectedKeywords = keywords.length;
-        this.progressCallback = progressCallback;
-        this.initializeModel().then(() => {
-            this.initializeEmbeddings(keywords);
-        });
-    }
-
-    private async initializeModel(): Promise<void> {
-        try {
-            // Report model loading start
-            this.progressCallback?.({
-                stage: "model_loading",
-                processed: 0,
-                total: 1,
-                percentage: 0,
-                message: "Loading TensorFlow model...",
-            });
-
-            // Dynamic import for browser compatibility
-            await import("@tensorflow/tfjs");
-            const use = await import(
-                "@tensorflow-models/universal-sentence-encoder"
-            );
-
-            console.log("Loading Universal Sentence Encoder model...");
-            this.model = await use.load();
-            this.isModelLoaded = true;
-            console.log("Model loaded successfully!");
-
-            // Report model loading complete
-            this.progressCallback?.({
-                stage: "model_loading",
-                processed: 1,
-                total: 1,
-                percentage: 100,
-                message: "Model loaded successfully!",
-            });
-        } catch (error) {
-            console.error("Error loading TensorFlow.js model:", error);
-            console.log("Falling back to simple text similarity...");
-            this.isModelLoaded = false;
-
-            // Report model loading failure
-            this.progressCallback?.({
-                stage: "model_loading",
-                processed: 1,
-                total: 1,
-                percentage: 100,
-                message: "Model loading failed, using fallback similarity",
-            });
-        }
-    }
-
-    private async initializeEmbeddings(keywords: string[]): Promise<void> {
-        if (!this.isModelLoaded) {
-            console.log("Model not loaded, using fallback similarity...");
-            this.progressCallback?.({
-                stage: "complete",
-                processed: keywords.length,
-                total: keywords.length,
-                percentage: 100,
-                message: "Using fallback similarity (no model loaded)",
-            });
-            return;
-        }
-
-        console.log("Generating embeddings for keywords...");
-
-        // Process keywords in batches to avoid memory issues
-        const batchSize = 50;
-        const totalBatches = Math.ceil(keywords.length / batchSize);
-
-        for (let i = 0; i < keywords.length; i += batchSize) {
-            const batch = keywords.slice(i, i + batchSize);
-            const currentBatch = Math.floor(i / batchSize) + 1;
-            const processedKeywords = Math.min(i + batchSize, keywords.length);
-
-            // Report progress before processing batch
-            this.progressCallback?.({
-                stage: "embedding_generation",
-                processed: i,
-                total: keywords.length,
-                percentage: Math.round((i / keywords.length) * 100),
-                message: "Generating embeddings...",
-            });
-
-            try {
-                const cleanedTexts = batch.map((keyword) =>
-                    keyword.replace(/[_-]/g, " ").replace(/\s+/g, " ").trim()
-                );
-
-                const embeddings = await this.model.embed(cleanedTexts);
-                const embeddingArray = await embeddings.array();
-
-                batch.forEach((keyword, index) => {
-                    this.keywordEmbeddings.set(keyword, embeddingArray[index]);
-                });
-
-                embeddings.dispose(); // Clean up tensors
-                console.log(`Processed batch ${currentBatch}/${totalBatches}`);
-
-                // Report progress after processing batch
-                this.progressCallback?.({
-                    stage: "embedding_generation",
-                    processed: processedKeywords,
-                    total: keywords.length,
-                    percentage: Math.round(
-                        (processedKeywords / keywords.length) * 100
-                    ),
-                    message: "Generating embeddings...",
-                });
-            } catch (error) {
-                console.error(
-                    `Error processing batch ${i}-${i + batchSize}:`,
-                    error
-                );
-                // Add fallback embeddings for failed batch
-                batch.forEach((keyword) => {
-                    this.keywordEmbeddings.set(
-                        keyword,
-                        this.createFallbackEmbedding(keyword)
-                    );
-                });
-
-                // Report progress even for failed batch
-                this.progressCallback?.({
-                    stage: "embedding_generation",
-                    processed: processedKeywords,
-                    total: keywords.length,
-                    percentage: Math.round(
-                        (processedKeywords / keywords.length) * 100
-                    ),
-                    message: "Generating embeddings (using fallback)...",
-                });
-            }
-        }
-
-        console.log("All embeddings generated successfully!");
-
-        // Report completion
-        this.progressCallback?.({
-            stage: "complete",
-            processed: keywords.length,
-            total: keywords.length,
-            percentage: 100,
-            message: "Ready",
-        });
-    }
-
-    private createFallbackEmbedding(text: string): number[] {
-        // Simple character-based embedding as fallback
-        const embedding = new Array(512).fill(0);
-        const normalizedText = text.toLowerCase().replace(/[_-]/g, " ");
-
-        // Character frequency features
-        for (let i = 0; i < normalizedText.length && i < 100; i++) {
-            const charCode = normalizedText.charCodeAt(i);
-            embedding[charCode % 512] += 1;
-        }
-
-        // Word features
-        const words = normalizedText.split(/\s+/);
-        words.forEach((word, index) => {
-            if (index < 50) {
-                for (let i = 0; i < word.length; i++) {
-                    embedding[(word.charCodeAt(i) + index * 10) % 512] += 0.5;
-                }
-            }
-        });
-
-        // Normalize
-        const magnitude = Math.sqrt(
-            embedding.reduce((sum, val) => sum + val * val, 0)
-        );
-        if (magnitude > 0) {
-            for (let i = 0; i < embedding.length; i++) {
-                embedding[i] /= magnitude;
-            }
-        }
-
-        return embedding;
-    }
-
-    private async getEmbedding(text: string): Promise<number[]> {
-        // Check cache first
-        if (this.embeddingCache.has(text)) {
-            return this.embeddingCache.get(text)!;
-        }
-
-        if (!this.isModelLoaded || !this.model) {
-            // Use fallback embedding
-            const embedding = this.createFallbackEmbedding(text);
-            this.embeddingCache.set(text, embedding);
-            return embedding;
-        }
-
-        try {
-            const cleanText = text
-                .replace(/[_-]/g, " ")
-                .replace(/\s+/g, " ")
-                .trim();
-            const embeddings = await this.model.embed([cleanText]);
-            const embeddingArray = await embeddings.array();
-            const embedding = embeddingArray[0];
-
-            embeddings.dispose(); // Clean up tensors
-
-            // Cache the embedding
-            this.embeddingCache.set(text, embedding);
-
-            return embedding;
-        } catch (error) {
-            console.error("Error getting embedding:", error);
-            // Fallback to simple embedding
-            const embedding = this.createFallbackEmbedding(text);
-            this.embeddingCache.set(text, embedding);
-            return embedding;
-        }
-    }
-
-    private cosineSimilarity(a: number[], b: number[]): number {
-        if (a.length !== b.length) return 0;
-
-        let dotProduct = 0;
-        let normA = 0;
-        let normB = 0;
-
-        for (let i = 0; i < a.length; i++) {
-            dotProduct += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
-        }
-
-        if (normA === 0 || normB === 0) return 0;
-        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-    }
-
-    public async findSimilarKeywords(
-        keyword: string,
-        threshold: number = 0.5,
-        maxResults: number = 10
-    ): Promise<SimilaritySearchResult[]> {
-        try {
-            const queryEmbedding = await this.getEmbedding(keyword);
-            const similarities: SimilaritySearchResult[] = [];
-
-            for (const [candidateKeyword, candidateEmbedding] of this
-                .keywordEmbeddings) {
-                if (candidateKeyword === keyword) continue; // Skip exact match
-
-                const similarity = this.cosineSimilarity(
-                    queryEmbedding,
-                    candidateEmbedding
-                );
-
-                if (similarity >= threshold) {
-                    similarities.push({
-                        keyword: candidateKeyword,
-                        similarity: similarity,
-                    });
-                }
-            }
-
-            // Sort by similarity score (descending) and limit results
-            return similarities
-                .sort((a, b) => b.similarity - a.similarity)
-                .slice(0, maxResults);
-        } catch (error) {
-            console.error("Error in semantic similarity search:", error);
-            return [];
-        }
-    }
-
-    public async findRelatedKeywords(
-        keyword: string,
-        threshold: number = 0.4,
-        maxResults: number = 10
-    ): Promise<string[]> {
-        const similar = await this.findSimilarKeywords(
-            keyword,
-            threshold,
-            maxResults
-        );
-        return [keyword, ...similar.map((result) => result.keyword)];
-    }
-
-    public isInitialized(): boolean {
-        return (
-            this.keywordEmbeddings.size === this.totalExpectedKeywords &&
-            this.totalExpectedKeywords > 0
-        );
-    }
-
-    public getModelStatus(): { loaded: boolean; embeddingsCount: number } {
-        return {
-            loaded: this.isModelLoaded,
-            embeddingsCount: this.keywordEmbeddings.size,
-        };
-    }
-}
-
-// Global instance
-let similaritySearch: LocalSemanticSimilaritySearch | null = null;
+// Global state
+let isSemanticSearchReady = true; // Server-side is always ready
 
 /**
- * Initialize the local semantic similarity search
- * This automatically loads the TensorFlow.js Universal Sentence Encoder model
+ * Initialize semantic search (no-op for server-side implementation)
+ * Keeping for compatibility with existing frontend code
  */
-export async function initializeLocalSemanticSearch(
-    progressCallback?: (progress: EmbeddingProgress) => void
-): Promise<void> {
-    if (similaritySearch) {
-        console.log("Semantic search already initialized");
-        return;
+export async function initializeLocalSemanticSearch(): Promise<void> {
+    console.log("Semantic search ready (server-side implementation)");
+    return Promise.resolve();
+}
+
+/**
+ * Get expanded keywords using server-side semantic search
+ * @param keywords - Array of input keywords
+ * @param threshold - Minimum similarity score (default: 0.4)
+ * @param maxResults - Maximum number of similar keywords to return per keyword (default: 10)
+ * @returns Deduplicated array of all related keywords
+ */
+export async function getExpandedKeywords(
+    keywords: string[],
+    threshold: number = 0.4,
+    maxResults: number = 10
+): Promise<string[]> {
+    try {
+        const response = await fetch("/api/semantic-search", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                keywords,
+                threshold,
+                max_results: maxResults,
+                operation: "expand",
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.expanded_keywords || keywords;
+    } catch (error) {
+        console.error("Error calling semantic search API:", error);
+        // Fallback to original keywords if API fails
+        return keywords;
     }
-
-    console.log("Initializing local semantic search...");
-    similaritySearch = new LocalSemanticSimilaritySearch(
-        search_keys,
-        progressCallback
-    );
-
-    // Wait for initialization to complete
-    while (!similaritySearch.isInitialized()) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    console.log("Local semantic search initialized successfully!");
 }
 
 /**
  * Get related keywords including the original keyword and semantically similar ones
  * @param keyword - The input keyword
  * @param threshold - Minimum similarity score (default: 0.4)
- * @param maxResults - Maximum number of similar keywords to return per keyword (default: 10)
+ * @param maxResults - Maximum number of similar keywords to return (default: 10)
  * @returns Array of related keywords
  */
 export async function getRelatedKeywords(
@@ -1016,78 +715,49 @@ export async function getRelatedKeywords(
     threshold: number = 0.4,
     maxResults: number = 10
 ): Promise<string[]> {
-    if (!similaritySearch) {
-        throw new Error(
-            "Local semantic search not initialized. Call initializeLocalSemanticSearch() first."
-        );
-    }
-
-    return similaritySearch.findRelatedKeywords(keyword, threshold, maxResults);
-}
-
-/**
- * Expand multiple keywords to include semantically similar terms
- * @param keywords - Array of input keywords (can include terms not in search_keys)
- * @param threshold - Minimum similarity score (default: 0.4)
- * @param maxResults - Maximum number of similar keywords to return per keyword (default: 10)
- * @returns Deduplicated array of all related keywords from the search_keys list
- */
-export async function getExpandedKeywords(
-    keywords: string[],
-    threshold: number = 0.4,
-    maxResults: number = 10
-): Promise<string[]> {
-    if (!similaritySearch) {
-        throw new Error(
-            "Local semantic search not initialized. Call initializeLocalSemanticSearch() first."
-        );
-    }
-
-    const expandedSet = new Set<string>();
-
-    for (const keyword of keywords) {
-        // Check if keyword is in the official search_keys list
-        if (search_keys.includes(keyword)) {
-            // Official keyword - add it and find related terms
-            const related = await getRelatedKeywords(
-                keyword,
+    try {
+        const response = await fetch("/api/semantic-search", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                keywords: [keyword],
                 threshold,
-                maxResults
-            );
-            for (const relatedKeyword of related) {
-                expandedSet.add(relatedKeyword);
-            }
-        } else {
-            // External keyword - find similar terms from the official list
-            const similar = await similaritySearch.findSimilarKeywords(
-                keyword,
-                threshold,
-                maxResults
-            );
+                max_results: maxResults,
+                operation: "similar",
+            }),
+        });
 
-            // Add the original keyword if it's useful for searching
-            expandedSet.add(keyword);
-
-            // Add similar keywords from the official list
-            for (const result of similar) {
-                if (search_keys.includes(result.keyword)) {
-                    expandedSet.add(result.keyword);
-                }
-            }
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
         }
-    }
 
-    return Array.from(expandedSet);
+        const data = await response.json();
+        const similarKeywords = data.similar_keywords || [];
+
+        // Return original keyword plus similar ones
+        return [
+            keyword,
+            ...similarKeywords.map(
+                (result: SimilaritySearchResult) => result.keyword
+            ),
+        ];
+    } catch (error) {
+        console.error("Error calling semantic search API:", error);
+        // Fallback to just the original keyword
+        return [keyword];
+    }
 }
 
 /**
- * Get status of the local model
+ * Get status of the semantic search system
  */
-export function getModelStatus(): {
-    loaded: boolean;
-    embeddingsCount: number;
-} | null {
-    return similaritySearch ? similaritySearch.getModelStatus() : null;
+export function getModelStatus(): { loaded: boolean; embeddingsCount: number } {
+    return {
+        loaded: isSemanticSearchReady,
+        embeddingsCount: search_keys.length,
+    };
 }
 
 export default search_keys;
