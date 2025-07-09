@@ -123,12 +123,14 @@ def find_similar_keywords(query: str, threshold: float = 0.4, max_results: int =
 
         query_embedding = None
         query_idx = None
+        is_known_keyword = False
 
         # Try to find exact match first
         for i, keyword in enumerate(keywords):
             if keyword.lower() == query_lower:
                 query_embedding = keyword_embeddings[i]
                 query_idx = i
+                is_known_keyword = True
                 break
 
         # Try cleaned version match
@@ -138,6 +140,7 @@ def find_similar_keywords(query: str, threshold: float = 0.4, max_results: int =
                 if cleaned_keyword.lower() == cleaned_query:
                     query_embedding = keyword_embeddings[i]
                     query_idx = i
+                    is_known_keyword = True
                     break
 
         # If not found, try to find a keyword that contains the query as substring
@@ -156,7 +159,7 @@ def find_similar_keywords(query: str, threshold: float = 0.4, max_results: int =
         # Compute similarities with all keywords
         similarities = []
         for i, keyword_embedding in enumerate(keyword_embeddings):
-            if i == query_idx:  # Skip exact match
+            if i == query_idx and is_known_keyword:  # Skip exact match
                 continue
 
             similarity = cosine_similarity(query_embedding, keyword_embedding)
