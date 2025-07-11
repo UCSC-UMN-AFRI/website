@@ -8,8 +8,6 @@ import {
     CheckSquare,
     XSquare,
     Plus,
-    ChevronLeft,
-    ChevronRight,
     Star,
     Loader2,
     Brain,
@@ -31,10 +29,6 @@ interface LegislativeAct {
         score: number;
         search_key: string;
     }[];
-}
-
-interface PaginationResponse {
-    total: number;
 }
 
 function App() {
@@ -66,11 +60,11 @@ function App() {
     const [isSemanticSearchPending, setIsSemanticSearchPending] =
         useState(false);
 
-    // Pagination states
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalItems, setTotalItems] = useState(0);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    // Infinite scroll states
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMoreResults, setHasMoreResults] = useState(true);
+    const [offset, setOffset] = useState(0);
+    const [resultsPerLoad, setResultsPerLoad] = useState(20);
 
     // Initialize semantic search (server-side is always ready)
     useEffect(() => {
@@ -154,58 +148,43 @@ function App() {
             document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const fetchTotalItems = async () => {
-        try {
-            // Use expanded keywords if semantic expansion is enabled
-            const searchKeys =
-                isSemanticExpansionEnabled && expandedKeywords.length > 0
-                    ? expandedKeywords
-                    : keywords;
+    // Scroll detection for infinite scroll
+    useEffect(() => {
+        const handleScroll = () => {
+            if (
+                window.innerHeight + document.documentElement.scrollTop + 100 >=
+                    document.documentElement.offsetHeight &&
+                !loadingMore &&
+                !isLoading &&
+                hasMoreResults &&
+                results.length > 0
+            ) {
+                loadMoreResults();
+            }
+        };
 
-            const response = await fetch("api/pagination", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    states: selectedStates,
-                    from_year: yearRange.min,
-                    to_year: yearRange.max,
-                    search_keys: searchKeys,
-                }),
-            });
-            const data: PaginationResponse = await response.json();
-            setTotalItems(data.total);
-            return data.total;
-        } catch (error) {
-            console.error("Error fetching total items:", error);
-            return 0;
-        }
-    };
+        window.addEventListener("scroll", handleScroll);
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, [loadingMore, isLoading, hasMoreResults, results.length]);
 
-    const handleSearch = async (page = 1) => {
+    const handleSearch = async (isNewSearch = true) => {
         // Prevent search if no keywords are entered
         if (keywords.length === 0) {
             console.log("Search prevented: No keywords provided.");
             setResults([]); // Clear previous results
-            setTotalItems(0); // Reset total items
-            setCurrentPage(1); // Reset to page 1
+            setOffset(0);
+            setHasMoreResults(true);
             return;
         }
 
-        setIsLoading(true);
-        setCurrentPage(page);
-        // Fetch total items first
-        if (page === 1) {
-            const total = await fetchTotalItems();
-            if (total === 0) {
-                setResults([]);
-                setIsLoading(false);
-                return;
-            }
+        if (isNewSearch) {
+            setIsLoading(true);
+            setOffset(0);
+            setHasMoreResults(true);
         }
 
-        // Then fetch the actual results
+        const searchOffset = isNewSearch ? 0 : offset;
+
         try {
             // Use expanded keywords if semantic expansion is enabled
             const searchKeys =
@@ -223,28 +202,46 @@ function App() {
                     from_year: yearRange.min,
                     to_year: yearRange.max,
                     search_keys: searchKeys,
-                    limit: itemsPerPage,
-                    offset: (page - 1) * itemsPerPage,
+                    limit: resultsPerLoad,
+                    offset: searchOffset,
                 }),
             });
             const data = await response.json();
-            setResults(data);
+
+            if (isNewSearch) {
+                setResults(data);
+            } else {
+                setResults((prevResults) => [...prevResults, ...data]);
+            }
+
+            // If we got fewer results than requested, we've reached the end
+            setHasMoreResults(data.length === resultsPerLoad);
+            setOffset(searchOffset + data.length);
         } catch (error) {
             console.error("Error fetching results:", error);
-            setResults([]);
+            if (isNewSearch) {
+                setResults([]);
+            }
         } finally {
-            setIsLoading(false);
+            if (isNewSearch) {
+                setIsLoading(false);
+            }
         }
     };
 
-    const handlePageChange = (page: number) => {
-        if (page >= 1 && page <= totalPages) {
-            handleSearch(page);
+    const loadMoreResults = async () => {
+        if (loadingMore || !hasMoreResults || keywords.length === 0) return;
+
+        setLoadingMore(true);
+        try {
+            await handleSearch(false);
+        } finally {
+            setLoadingMore(false);
         }
     };
 
-    const handleItemsPerPageChange = (value: number) => {
-        setItemsPerPage(value);
+    const handleResultsPerLoadChange = (value: number) => {
+        setResultsPerLoad(value);
     };
 
     const states = [
@@ -365,28 +362,6 @@ function App() {
             e.preventDefault();
             addKeyword();
         }
-    };
-
-    // Generate page numbers to display
-    const getPageNumbers = () => {
-        const pageNumbers = [];
-        const maxPagesToShow = 5;
-
-        let startPage = Math.max(
-            1,
-            currentPage - Math.floor(maxPagesToShow / 2)
-        );
-        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-
-        if (endPage - startPage + 1 < maxPagesToShow) {
-            startPage = Math.max(1, endPage - maxPagesToShow + 1);
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-            pageNumbers.push(i);
-        }
-
-        return pageNumbers;
     };
 
     return (
@@ -777,12 +752,12 @@ function App() {
                     <div className="mt-6 flex justify-between items-center">
                         <div className="flex items-center space-x-2">
                             <label className="text-sm font-medium text-gray-700">
-                                Results per page:
+                                Results per load:
                             </label>
                             <select
-                                value={itemsPerPage}
+                                value={resultsPerLoad}
                                 onChange={(e) =>
-                                    handleItemsPerPageChange(
+                                    handleResultsPerLoadChange(
                                         Number(e.target.value)
                                     )
                                 }
@@ -795,7 +770,7 @@ function App() {
                             </select>
                         </div>
                         <button
-                            onClick={() => handleSearch(1)}
+                            onClick={() => handleSearch(true)}
                             disabled={keywords.length === 0 || isLoading}
                             className={`bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors flex items-center space-x-2 ${
                                 keywords.length === 0 || isLoading
@@ -821,15 +796,12 @@ function App() {
                         <h2 className="text-lg font-semibold text-gray-900">
                             Search Results
                         </h2>
-                        {totalItems > 0 && (
+                        {results.length > 0 && (
                             <p className="text-sm text-gray-500 mt-1">
-                                Showing {(currentPage - 1) * itemsPerPage + 1}{" "}
-                                to{" "}
-                                {Math.min(
-                                    currentPage * itemsPerPage,
-                                    totalItems
-                                )}{" "}
-                                of {totalItems} results
+                                Showing {results.length} results
+                                {hasMoreResults
+                                    ? " (scroll down for more)"
+                                    : ""}
                             </p>
                         )}
                     </div>
@@ -913,55 +885,14 @@ function App() {
                         </div>
                     )}
 
-                    {/* Pagination */}
-                    {totalPages > 1 && (
+                    {/* Loading More Indicator */}
+                    {loadingMore && (
                         <div className="px-6 py-4 border-t border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <button
-                                    onClick={() =>
-                                        handlePageChange(currentPage - 1)
-                                    }
-                                    disabled={currentPage === 1}
-                                    className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
-                                        currentPage === 1
-                                            ? "text-gray-400 cursor-not-allowed"
-                                            : "text-gray-700 hover:bg-gray-50"
-                                    }`}
-                                >
-                                    <ChevronLeft className="h-5 w-5 mr-1" />
-                                    Previous
-                                </button>
-                                <div className="flex items-center space-x-2">
-                                    {getPageNumbers().map((page) => (
-                                        <button
-                                            key={page}
-                                            onClick={() =>
-                                                handlePageChange(page)
-                                            }
-                                            className={`px-3 py-2 rounded-md text-sm font-medium ${
-                                                currentPage === page
-                                                    ? "bg-blue-600 text-white"
-                                                    : "text-gray-700 hover:bg-gray-50"
-                                            }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    ))}
-                                </div>
-                                <button
-                                    onClick={() =>
-                                        handlePageChange(currentPage + 1)
-                                    }
-                                    disabled={currentPage === totalPages}
-                                    className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
-                                        currentPage === totalPages
-                                            ? "text-gray-400 cursor-not-allowed"
-                                            : "text-gray-700 hover:bg-gray-50"
-                                    }`}
-                                >
-                                    Next
-                                    <ChevronRight className="h-5 w-5 ml-1" />
-                                </button>
+                            <div className="flex justify-center items-center space-x-2">
+                                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                                <span className="text-sm text-gray-600">
+                                    Loading more results...
+                                </span>
                             </div>
                         </div>
                     )}
