@@ -65,6 +65,7 @@ function App() {
     const [hasMoreResults, setHasMoreResults] = useState(true);
     const [offset, setOffset] = useState(0);
     const [resultsPerLoad, setResultsPerLoad] = useState(20);
+    const [debouncedYearRange, setDebouncedYearRange] = useState(yearRange);
 
     // Initialize semantic search (server-side is always ready)
     useEffect(() => {
@@ -125,6 +126,31 @@ function App() {
         isSemanticExpansionEnabled,
         debouncedSemanticThreshold,
         debouncedMaxResults,
+    ]);
+
+    // Debounce year range changes
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedYearRange(yearRange);
+        }, 750);
+
+        return () => clearTimeout(timer);
+    }, [yearRange]);
+
+    // Auto-search effect
+    useEffect(() => {
+        if (keywords.length > 0) {
+            handleSearch(true);
+        } else {
+            setResults([]);
+            setOffset(0);
+            setHasMoreResults(true);
+        }
+    }, [
+        expandedKeywords,
+        selectedStates,
+        debouncedYearRange.min,
+        debouncedYearRange.max,
     ]);
 
     useEffect(() => {
