@@ -12,11 +12,14 @@ import {
     Loader2,
     Brain,
     Info,
+    Moon,
+    Sun,
 } from "lucide-react";
 import search_keys, {
     initializeLocalSemanticSearch,
     getExpandedKeywords,
 } from "./keywords";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface LegislativeAct {
     act_num: string;
@@ -390,8 +393,30 @@ function App() {
         }
     };
 
+    // Dark mode state - simplified to just light/dark toggle
+    const [darkMode, setDarkMode] = useState(() => {
+        if (typeof window !== "undefined") {
+            const saved = localStorage.getItem("darkMode");
+            return saved ? JSON.parse(saved) : false;
+        }
+        return false;
+    });
+
+    useEffect(() => {
+        if (darkMode) {
+            document.documentElement.classList.add("dark");
+        } else {
+            document.documentElement.classList.remove("dark");
+        }
+        localStorage.setItem("darkMode", JSON.stringify(darkMode));
+    }, [darkMode]);
+
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div
+            className={`min-h-screen transition-colors duration-200 ${
+                darkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
+            }`}
+        >
             <style>
                 {`
                     .slider::-webkit-slider-thumb {
@@ -424,28 +449,73 @@ function App() {
                         background: #9ca3af;
                         cursor: not-allowed;
                     }
+
+                    .dark-mode .slider::-webkit-slider-thumb {
+                        background: #60a5fa;
+                        border: 2px solid #374151;
+                    }
+
+                    .dark-mode .slider::-moz-range-thumb {
+                        background: #60a5fa;
+                        border: 2px solid #374151;
+                    }
                 `}
             </style>
             {/* Header */}
-            <header className="bg-white shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 py-6">
-                    <h1 className="text-3xl font-bold text-gray-900">
+            <header
+                className={`shadow-sm transition-colors duration-200 ${
+                    darkMode ? "bg-gray-800" : "bg-white"
+                }`}
+            >
+                <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
+                    <h1
+                        className={`text-3xl font-bold ${
+                            darkMode ? "text-white" : "text-gray-900"
+                        }`}
+                    >
                         Legislative Database Search
                     </h1>
+                    <button
+                        onClick={() => setDarkMode(!darkMode)}
+                        className={`p-2 rounded-full transition-colors duration-200 ${
+                            darkMode ? "hover:bg-gray-700" : "hover:bg-gray-200"
+                        }`}
+                        aria-label="Toggle dark mode"
+                    >
+                        {darkMode ? (
+                            <Sun className="h-5 w-5 text-gray-300" />
+                        ) : (
+                            <Moon className="h-5 w-5 text-gray-700" />
+                        )}
+                    </button>
                 </div>
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-8">
                 {/* Search Filters */}
-                <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div
+                    className={`rounded-lg shadow-md p-6 mb-8 transition-colors duration-200 ${
+                        darkMode ? "bg-gray-800" : "bg-white"
+                    }`}
+                >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {/* Keyword Search */}
                         <div className="space-y-2" ref={keywordDropdownRef}>
-                            <label className="block text-sm font-medium text-gray-700">
+                            <label
+                                className={`block text-sm font-medium ${
+                                    darkMode ? "text-gray-300" : "text-gray-700"
+                                }`}
+                            >
                                 Keywords
                             </label>
                             <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                                <Search
+                                    className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                                        darkMode
+                                            ? "text-gray-500"
+                                            : "text-gray-400"
+                                    }`}
+                                />
                                 <input
                                     type="text"
                                     value={currentKeyword}
@@ -454,24 +524,42 @@ function App() {
                                     onFocus={() =>
                                         setIsKeywordDropdownOpen(true)
                                     }
-                                    className="pl-10 w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className={`pl-10 w-full rounded-md border py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 ${
+                                        darkMode
+                                            ? "border-gray-600 bg-gray-700 text-white"
+                                            : "border-gray-300 bg-white text-gray-900"
+                                    }`}
                                     placeholder="Search keywords..."
                                 />
                                 <button
                                     onClick={() => addKeyword()}
-                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    className={`absolute right-2 top-1/2 transform -translate-y-1/2 transition-colors duration-200 ${
+                                        darkMode
+                                            ? "text-gray-500 hover:text-gray-300"
+                                            : "text-gray-400 hover:text-gray-600"
+                                    }`}
                                 >
                                     <Plus className="h-5 w-5" />
                                 </button>
                             </div>
                             {isKeywordDropdownOpen &&
                                 filteredKeywords.length > 0 && (
-                                    <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-60 overflow-auto">
+                                    <div
+                                        className={`absolute z-10 mt-1 w-full border rounded-md shadow-lg max-h-60 overflow-auto ${
+                                            darkMode
+                                                ? "bg-gray-800 border-gray-700"
+                                                : "bg-white border-gray-200"
+                                        }`}
+                                    >
                                         <ul className="py-1">
                                             {filteredKeywords.map((keyword) => (
                                                 <li
                                                     key={keyword}
-                                                    className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-gray-900"
+                                                    className={`px-3 py-2 cursor-pointer transition-colors duration-200 ${
+                                                        darkMode
+                                                            ? "text-white hover:bg-gray-700"
+                                                            : "text-gray-900 hover:bg-blue-50"
+                                                    }`}
                                                     onClick={() =>
                                                         addKeyword(keyword)
                                                     }
@@ -496,11 +584,19 @@ function App() {
                                             )
                                         }
                                         disabled={false}
-                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                                        className={`h-4 w-4 text-blue-600 focus:ring-blue-500 rounded disabled:opacity-50 ${
+                                            darkMode
+                                                ? "border-gray-600"
+                                                : "border-gray-300"
+                                        }`}
                                     />
                                     <label
                                         htmlFor="semantic-expansion"
-                                        className="ml-2 text-sm text-gray-700"
+                                        className={`ml-2 text-sm ${
+                                            darkMode
+                                                ? "text-gray-300"
+                                                : "text-gray-700"
+                                        }`}
                                     >
                                         <span className="flex items-center">
                                             <Brain className="h-4 w-4 mr-1" />
@@ -509,13 +605,31 @@ function App() {
                                     </label>
                                     {isSemanticSearchPending &&
                                         isSemanticExpansionEnabled && (
-                                            <Loader2 className="h-4 w-4 animate-spin text-blue-600 ml-2" />
+                                            <Loader2
+                                                className={`h-4 w-4 animate-spin ml-2 ${
+                                                    darkMode
+                                                        ? "text-blue-400"
+                                                        : "text-blue-600"
+                                                }`}
+                                            />
                                         )}
                                 </div>
 
                                 <div className="group relative">
-                                    <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
-                                    <div className="invisible group-hover:visible absolute z-20 w-64 p-2 mt-1 text-xs bg-gray-900 text-white rounded shadow-lg -translate-x-1/2 left-1/2">
+                                    <Info
+                                        className={`h-4 w-4 cursor-help transition-colors duration-200 ${
+                                            darkMode
+                                                ? "text-gray-500 hover:text-gray-300"
+                                                : "text-gray-400 hover:text-gray-600"
+                                        }`}
+                                    />
+                                    <div
+                                        className={`invisible group-hover:visible absolute z-20 w-64 p-2 mt-1 text-xs text-white rounded shadow-lg -translate-x-1/2 left-1/2 ${
+                                            darkMode
+                                                ? "bg-gray-700"
+                                                : "bg-gray-900"
+                                        }`}
+                                    >
                                         Automatically finds related keywords to
                                         expand your search
                                     </div>
@@ -526,12 +640,24 @@ function App() {
                             {isSemanticExpansionEnabled && (
                                 <div className="mt-3 space-y-4">
                                     <div className="space-y-2">
-                                        <label className="block text-sm font-medium text-gray-700">
+                                        <label
+                                            className={`block text-sm font-medium ${
+                                                darkMode
+                                                    ? "text-gray-300"
+                                                    : "text-gray-700"
+                                            }`}
+                                        >
                                             Similarity threshold:{" "}
                                             {semanticThreshold.toFixed(2)}
                                         </label>
                                         <div className="flex items-center space-x-3">
-                                            <span className="text-xs text-gray-500">
+                                            <span
+                                                className={`text-xs ${
+                                                    darkMode
+                                                        ? "text-gray-400"
+                                                        : "text-gray-500"
+                                                }`}
+                                            >
                                                 Broad
                                             </span>
                                             <input
@@ -547,14 +673,30 @@ function App() {
                                                         )
                                                     )
                                                 }
-                                                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                                                className={`flex-1 h-2 rounded-lg appearance-none cursor-pointer slider ${
+                                                    darkMode
+                                                        ? "bg-gray-600"
+                                                        : "bg-gray-200"
+                                                }`}
                                                 disabled={false}
                                             />
-                                            <span className="text-xs text-gray-500">
+                                            <span
+                                                className={`text-xs ${
+                                                    darkMode
+                                                        ? "text-gray-400"
+                                                        : "text-gray-500"
+                                                }`}
+                                            >
                                                 Strict
                                             </span>
                                         </div>
-                                        <div className="text-xs text-gray-500">
+                                        <div
+                                            className={`text-xs ${
+                                                darkMode
+                                                    ? "text-gray-400"
+                                                    : "text-gray-500"
+                                            }`}
+                                        >
                                             Lower values = more but less similar
                                             keywords • Higher values = fewer but
                                             more similar keywords
@@ -563,7 +705,13 @@ function App() {
 
                                     {/* Max Results Control */}
                                     <div className="space-y-2">
-                                        <label className="block text-sm font-medium text-gray-700">
+                                        <label
+                                            className={`block text-sm font-medium ${
+                                                darkMode
+                                                    ? "text-gray-300"
+                                                    : "text-gray-700"
+                                            }`}
+                                        >
                                             Max similar keywords per term:
                                         </label>
                                         <div className="flex items-center space-x-3">
@@ -575,7 +723,11 @@ function App() {
                                                     )
                                                 }
                                                 disabled={false}
-                                                className="rounded-md border border-gray-300 py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className={`rounded-md border py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 ${
+                                                    darkMode
+                                                        ? "border-gray-600 bg-gray-700 text-white"
+                                                        : "border-gray-300 bg-white text-gray-900"
+                                                }`}
                                             >
                                                 <option value={5}>5</option>
                                                 <option value={10}>10</option>
@@ -583,7 +735,13 @@ function App() {
                                                 <option value={50}>50</option>
                                                 <option value={100}>100</option>
                                             </select>
-                                            <div className="text-xs text-gray-500">
+                                            <div
+                                                className={`text-xs ${
+                                                    darkMode
+                                                        ? "text-gray-400"
+                                                        : "text-gray-500"
+                                                }`}
+                                            >
                                                 Controls how many similar
                                                 keywords to find for each search
                                                 term
@@ -598,7 +756,11 @@ function App() {
                                 {keywords.map((keyword) => (
                                     <span
                                         key={keyword}
-                                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
+                                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium ${
+                                            darkMode
+                                                ? "bg-blue-900 text-blue-200"
+                                                : "bg-blue-100 text-blue-800"
+                                        }`}
                                     >
                                         {keyword}
                                         <button
@@ -606,10 +768,14 @@ function App() {
                                             onClick={() =>
                                                 removeKeyword(keyword)
                                             }
-                                            className="ml-1.5 inline-flex items-center justify-center"
+                                            className={`ml-1.5 inline-flex items-center justify-center transition-colors duration-200 ${
+                                                darkMode
+                                                    ? "hover:text-blue-400"
+                                                    : "hover:text-blue-600"
+                                            }`}
                                         >
                                             <X
-                                                className="h-4 w-4 hover:text-blue-900"
+                                                className="h-4 w-4"
                                                 aria-hidden="true"
                                             />
                                         </button>
@@ -620,8 +786,20 @@ function App() {
                             {/* Expanded Keywords Display */}
                             {isSemanticExpansionEnabled &&
                                 expandedKeywords.length > keywords.length && (
-                                    <div className="mt-3 p-3 bg-blue-50 rounded-md">
-                                        <div className="text-sm font-medium text-blue-800 mb-2 flex items-center">
+                                    <div
+                                        className={`mt-3 p-3 rounded-md ${
+                                            darkMode
+                                                ? "bg-blue-900/30"
+                                                : "bg-blue-50"
+                                        }`}
+                                    >
+                                        <div
+                                            className={`text-sm font-medium mb-2 flex items-center ${
+                                                darkMode
+                                                    ? "text-blue-200"
+                                                    : "text-blue-800"
+                                            }`}
+                                        >
                                             <Brain className="h-4 w-4 mr-1" />
                                             Expanded search terms (
                                             {expandedKeywords.length -
@@ -639,7 +817,11 @@ function App() {
                                                 .map((keyword) => (
                                                     <span
                                                         key={keyword}
-                                                        className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-200 text-blue-700"
+                                                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs ${
+                                                            darkMode
+                                                                ? "bg-blue-800 text-blue-200"
+                                                                : "bg-blue-200 text-blue-700"
+                                                        }`}
                                                     >
                                                         {keyword}
                                                     </span>
@@ -652,16 +834,34 @@ function App() {
                         {/* State Selection */}
                         <div className="space-y-2" ref={stateDropdownRef}>
                             <div className="flex justify-between items-center">
-                                <label className="block text-sm font-medium text-gray-700">
+                                <label
+                                    className={`block text-sm font-medium ${
+                                        darkMode
+                                            ? "text-gray-300"
+                                            : "text-gray-700"
+                                    }`}
+                                >
                                     States
                                 </label>
-                                <span className="text-sm text-gray-500">
+                                <span
+                                    className={`text-sm ${
+                                        darkMode
+                                            ? "text-gray-400"
+                                            : "text-gray-500"
+                                    }`}
+                                >
                                     {selectedStates.length} of {states.length}{" "}
                                     selected
                                 </span>
                             </div>
                             <div className="relative">
-                                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                                <MapPin
+                                    className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                                        darkMode
+                                            ? "text-gray-500"
+                                            : "text-gray-400"
+                                    }`}
+                                />
                                 <input
                                     type="text"
                                     value={stateSearch}
@@ -670,17 +870,31 @@ function App() {
                                         setIsStateDropdownOpen(true);
                                     }}
                                     onFocus={() => setIsStateDropdownOpen(true)}
-                                    className="pl-10 w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className={`pl-10 w-full rounded-md border py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 ${
+                                        darkMode
+                                            ? "border-gray-600 bg-gray-700 text-white"
+                                            : "border-gray-300 bg-white text-gray-900"
+                                    }`}
                                     placeholder="Search states..."
                                 />
                                 {isStateDropdownOpen &&
                                     filteredStates.length > 0 && (
-                                        <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-60 overflow-auto">
+                                        <div
+                                            className={`absolute z-10 mt-1 w-full border rounded-md shadow-lg max-h-60 overflow-auto ${
+                                                darkMode
+                                                    ? "bg-gray-800 border-gray-700"
+                                                    : "bg-white border-gray-200"
+                                            }`}
+                                        >
                                             <ul className="py-1">
                                                 {filteredStates.map((state) => (
                                                     <li
                                                         key={state}
-                                                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-gray-900"
+                                                        className={`px-3 py-2 cursor-pointer transition-colors duration-200 ${
+                                                            darkMode
+                                                                ? "text-white hover:bg-gray-700"
+                                                                : "text-gray-900 hover:bg-blue-50"
+                                                        }`}
                                                         onClick={() =>
                                                             handleStateSelect(
                                                                 state
@@ -698,7 +912,11 @@ function App() {
                                 <button
                                     type="button"
                                     onClick={handleSelectAllStates}
-                                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    className={`inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 ${
+                                        darkMode
+                                            ? "text-blue-300 bg-blue-900/30 hover:bg-blue-800/30"
+                                            : "text-blue-700 bg-blue-100 hover:bg-blue-200"
+                                    }`}
                                 >
                                     <CheckSquare className="h-4 w-4 mr-1.5" />
                                     Select All
@@ -706,7 +924,11 @@ function App() {
                                 <button
                                     type="button"
                                     onClick={handleClearAllStates}
-                                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                                    className={`inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200 ${
+                                        darkMode
+                                            ? "text-gray-300 bg-gray-700 hover:bg-gray-600"
+                                            : "text-gray-700 bg-gray-100 hover:bg-gray-200"
+                                    }`}
                                 >
                                     <XSquare className="h-4 w-4 mr-1.5" />
                                     Clear All
@@ -717,16 +939,24 @@ function App() {
                                 {selectedStates.map((state) => (
                                     <span
                                         key={state}
-                                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
+                                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium ${
+                                            darkMode
+                                                ? "bg-blue-900 text-blue-200"
+                                                : "bg-blue-100 text-blue-800"
+                                        }`}
                                     >
                                         {state}
                                         <button
                                             type="button"
                                             onClick={() => removeState(state)}
-                                            className="ml-1.5 inline-flex items-center justify-center"
+                                            className={`ml-1.5 inline-flex items-center justify-center transition-colors duration-200 ${
+                                                darkMode
+                                                    ? "hover:text-blue-400"
+                                                    : "hover:text-blue-600"
+                                            }`}
                                         >
                                             <X
-                                                className="h-4 w-4 hover:text-blue-900"
+                                                className="h-4 w-4"
                                                 aria-hidden="true"
                                             />
                                         </button>
@@ -737,12 +967,22 @@ function App() {
 
                         {/* Year Range */}
                         <div className="space-y-2 col-span-1 md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700">
+                            <label
+                                className={`block text-sm font-medium ${
+                                    darkMode ? "text-gray-300" : "text-gray-700"
+                                }`}
+                            >
                                 Year Range
                             </label>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="relative">
-                                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                                    <Calendar
+                                        className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                                            darkMode
+                                                ? "text-gray-500"
+                                                : "text-gray-400"
+                                        }`}
+                                    />
                                     <input
                                         type="number"
                                         value={yearRange.min}
@@ -752,12 +992,22 @@ function App() {
                                                 min: parseInt(e.target.value),
                                             })
                                         }
-                                        className="pl-10 w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className={`pl-10 w-full rounded-md border py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 ${
+                                            darkMode
+                                                ? "border-gray-600 bg-gray-700 text-white"
+                                                : "border-gray-300 bg-white text-gray-900"
+                                        }`}
                                         placeholder="From year"
                                     />
                                 </div>
                                 <div className="relative">
-                                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                                    <Calendar
+                                        className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                                            darkMode
+                                                ? "text-gray-500"
+                                                : "text-gray-400"
+                                        }`}
+                                    />
                                     <input
                                         type="number"
                                         value={yearRange.max}
@@ -767,7 +1017,11 @@ function App() {
                                                 max: parseInt(e.target.value),
                                             })
                                         }
-                                        className="pl-10 w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className={`pl-10 w-full rounded-md border py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 ${
+                                            darkMode
+                                                ? "border-gray-600 bg-gray-700 text-white"
+                                                : "border-gray-300 bg-white text-gray-900"
+                                        }`}
                                         placeholder="To year"
                                     />
                                 </div>
@@ -777,7 +1031,11 @@ function App() {
 
                     <div className="mt-6 flex justify-between items-center">
                         <div className="flex items-center space-x-2">
-                            <label className="text-sm font-medium text-gray-700">
+                            <label
+                                className={`text-sm font-medium ${
+                                    darkMode ? "text-gray-300" : "text-gray-700"
+                                }`}
+                            >
                                 Results per load:
                             </label>
                             <select
@@ -787,7 +1045,11 @@ function App() {
                                         Number(e.target.value)
                                     )
                                 }
-                                className="rounded-md border border-gray-300 py-1 px-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className={`rounded-md border py-1 px-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 ${
+                                    darkMode
+                                        ? "border-gray-600 bg-gray-700 text-white"
+                                        : "border-gray-300 bg-white text-gray-900"
+                                }`}
                             >
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
@@ -798,7 +1060,11 @@ function App() {
                         <button
                             onClick={() => handleSearch(true)}
                             disabled={keywords.length === 0 || isLoading}
-                            className={`bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors flex items-center space-x-2 ${
+                            className={`text-white px-6 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 flex items-center space-x-2 ${
+                                darkMode
+                                    ? "bg-blue-500 hover:bg-blue-600"
+                                    : "bg-blue-600 hover:bg-blue-700"
+                            } ${
                                 keywords.length === 0 || isLoading
                                     ? "opacity-50 cursor-not-allowed"
                                     : ""
@@ -817,93 +1083,202 @@ function App() {
                 </div>
 
                 {/* Results Section */}
-                <div className="bg-white rounded-lg shadow-md">
-                    <div className="px-6 py-4 border-b border-gray-200">
-                        <h2 className="text-lg font-semibold text-gray-900">
+                <div
+                    className={`rounded-lg shadow-md transition-colors duration-200 ${
+                        darkMode ? "bg-gray-800" : "bg-white"
+                    }`}
+                >
+                    <div
+                        className={`px-6 py-4 border-b ${
+                            darkMode ? "border-gray-700" : "border-gray-200"
+                        }`}
+                    >
+                        <h2
+                            className={`text-lg font-semibold ${
+                                darkMode ? "text-white" : "text-gray-900"
+                            }`}
+                        >
                             Search Results
                         </h2>
                         {results.length > 0 && (
-                            <p className="text-sm text-gray-500 mt-1">
-                                Showing {results.length} results
-                                {hasMoreResults
-                                    ? " (scroll down for more)"
-                                    : ""}
+                            <p
+                                className={`text-sm mt-1 ${
+                                    darkMode ? "text-gray-400" : "text-gray-500"
+                                }`}
+                            >
+                                Showing {results.length} results{" "}
+                                {hasMoreResults ? "(scroll down for more)" : ""}
                             </p>
                         )}
                     </div>
                     {isLoading ? (
-                        <div className="p-12 flex justify-center items-center">
-                            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-gray-200">
-                            {results.map((result) => (
+                        <div className="space-y-4 p-6">
+                            {[...Array(5)].map((_, i) => (
                                 <div
-                                    key={result.act_num}
-                                    className="p-6 hover:bg-gray-50"
+                                    key={i}
+                                    className="animate-pulse flex space-x-4"
                                 >
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h3 className="text-lg font-medium text-gray-900">
-                                                <a
-                                                    href={result.link}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="hover:text-blue-600"
-                                                >
-                                                    {result.name}
-                                                </a>
-                                            </h3>
-                                            <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
-                                                <span className="flex items-center">
-                                                    <BookOpen className="h-4 w-4 mr-1" />
-                                                    {result.act_num}
-                                                </span>
-                                                <span className="flex items-center">
-                                                    <MapPin className="h-4 w-4 mr-1" />
-                                                    {result.state}
-                                                </span>
-                                                <span className="flex items-center">
-                                                    <Calendar className="h-4 w-4 mr-1" />
-                                                    {result.year}
-                                                </span>
-                                                <span className="flex items-center">
-                                                    <a
-                                                        href={
-                                                            result.backup_link
-                                                        }
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-sm text-blue-600 hover:text-blue-800"
-                                                    >
-                                                        PDF Backup
-                                                    </a>
-                                                </span>
+                                    <div className="flex-1 space-y-6 py-1">
+                                        <div
+                                            className={`h-4 rounded w-3/4 ${
+                                                darkMode
+                                                    ? "bg-gray-600"
+                                                    : "bg-gray-300"
+                                            }`}
+                                        ></div>
+                                        <div className="space-y-3">
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div
+                                                    className={`h-3 rounded col-span-2 ${
+                                                        darkMode
+                                                            ? "bg-gray-600"
+                                                            : "bg-gray-300"
+                                                    }`}
+                                                ></div>
+                                                <div
+                                                    className={`h-3 rounded col-span-1 ${
+                                                        darkMode
+                                                            ? "bg-gray-600"
+                                                            : "bg-gray-300"
+                                                    }`}
+                                                ></div>
                                             </div>
-                                        </div>
-                                        <div className="flex flex-col items-end space-y-2">
-                                            {result.relevances.map(
-                                                (relevance, index) => (
-                                                    <span
-                                                        key={index}
-                                                        className="flex items-center text-sm text-gray-600"
-                                                    >
-                                                        <Star className="h-4 w-4 mr-1 text-yellow-500" />
-                                                        {relevance.score}
-                                                        <span className="ml-2 px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                                                            {
-                                                                relevance.search_key
-                                                            }
-                                                        </span>
-                                                    </span>
-                                                )
-                                            )}
+                                            <div
+                                                className={`h-3 rounded ${
+                                                    darkMode
+                                                        ? "bg-gray-600"
+                                                        : "bg-gray-300"
+                                                }`}
+                                            ></div>
                                         </div>
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    ) : (
+                        <div
+                            className={`divide-y ${
+                                darkMode ? "divide-gray-700" : "divide-gray-200"
+                            }`}
+                        >
+                            <AnimatePresence>
+                                {results.map((result) => (
+                                    <motion.div
+                                        key={result.act_num}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.3 }}
+                                        className={`p-6 transition-colors duration-200 ${
+                                            darkMode
+                                                ? "hover:bg-gray-700"
+                                                : "hover:bg-gray-50"
+                                        }`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3
+                                                    className={`text-lg font-medium ${
+                                                        darkMode
+                                                            ? "text-white"
+                                                            : "text-gray-900"
+                                                    }`}
+                                                >
+                                                    <a
+                                                        href={result.link}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className={`transition-colors duration-200 ${
+                                                            darkMode
+                                                                ? "hover:text-blue-400"
+                                                                : "hover:text-blue-600"
+                                                        }`}
+                                                    >
+                                                        {result.name}
+                                                    </a>
+                                                </h3>
+                                                <div
+                                                    className={`mt-2 flex items-center space-x-4 text-sm ${
+                                                        darkMode
+                                                            ? "text-gray-400"
+                                                            : "text-gray-500"
+                                                    }`}
+                                                >
+                                                    <span className="flex items-center">
+                                                        <BookOpen className="h-4 w-4 mr-1" />
+                                                        {result.act_num}
+                                                    </span>
+                                                    <span className="flex items-center">
+                                                        <MapPin className="h-4 w-4 mr-1" />
+                                                        {result.state}
+                                                    </span>
+                                                    <span className="flex items-center">
+                                                        <Calendar className="h-4 w-4 mr-1" />
+                                                        {result.year}
+                                                    </span>
+                                                    <span className="flex items-center">
+                                                        <a
+                                                            href={
+                                                                result.backup_link
+                                                            }
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className={`text-sm transition-colors duration-200 ${
+                                                                darkMode
+                                                                    ? "text-blue-400 hover:text-blue-300"
+                                                                    : "text-blue-600 hover:text-blue-800"
+                                                            }`}
+                                                        >
+                                                            PDF Backup
+                                                        </a>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-end space-y-2">
+                                                {result.relevances.map(
+                                                    (relevance, index) => (
+                                                        <span
+                                                            key={index}
+                                                            className={`flex items-center text-sm ${
+                                                                darkMode
+                                                                    ? "text-gray-300"
+                                                                    : "text-gray-600"
+                                                            }`}
+                                                        >
+                                                            <Star
+                                                                className={`h-4 w-4 mr-1 ${
+                                                                    darkMode
+                                                                        ? "text-yellow-400"
+                                                                        : "text-yellow-500"
+                                                                }`}
+                                                            />
+                                                            {relevance.score}
+                                                            <span
+                                                                className={`ml-2 px-2 py-0.5 rounded ${
+                                                                    darkMode
+                                                                        ? "bg-gray-700 text-gray-300"
+                                                                        : "bg-gray-100 text-gray-700"
+                                                                }`}
+                                                            >
+                                                                {
+                                                                    relevance.search_key
+                                                                }
+                                                            </span>
+                                                        </span>
+                                                    )
+                                                )}
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
                             {results.length === 0 && !isLoading && (
-                                <div className="p-6 text-center text-gray-500">
+                                <div
+                                    className={`p-6 text-center ${
+                                        darkMode
+                                            ? "text-gray-400"
+                                            : "text-gray-500"
+                                    }`}
+                                >
                                     No results found. Try adjusting your search
                                     criteria.
                                 </div>
@@ -913,10 +1288,26 @@ function App() {
 
                     {/* Loading More Indicator */}
                     {loadingMore && (
-                        <div className="px-6 py-4 border-t border-gray-200">
+                        <div
+                            className={`px-6 py-4 border-t ${
+                                darkMode ? "border-gray-700" : "border-gray-200"
+                            }`}
+                        >
                             <div className="flex justify-center items-center space-x-2">
-                                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                                <span className="text-sm text-gray-600">
+                                <Loader2
+                                    className={`h-5 w-5 animate-spin ${
+                                        darkMode
+                                            ? "text-blue-400"
+                                            : "text-blue-600"
+                                    }`}
+                                />
+                                <span
+                                    className={`text-sm ${
+                                        darkMode
+                                            ? "text-gray-400"
+                                            : "text-gray-600"
+                                    }`}
+                                >
                                     Loading more results...
                                 </span>
                             </div>
