@@ -502,7 +502,10 @@ function App() {
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8 transition-colors duration-200">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {/* Keyword Search */}
-                        <div className="space-y-2" ref={keywordDropdownRef}>
+                        <div
+                            className="space-y-2 relative"
+                            ref={keywordDropdownRef}
+                        >
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Keywords
                             </label>
@@ -528,12 +531,12 @@ function App() {
                             </div>
                             {isKeywordDropdownOpen &&
                                 filteredKeywords.length > 0 && (
-                                    <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto">
+                                    <div className="absolute z-10 mt-1 w-full min-w-0 left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto">
                                         <ul className="py-1">
                                             {filteredKeywords.map((keyword) => (
                                                 <li
                                                     key={keyword}
-                                                    className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-white transition-colors duration-200"
+                                                    className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-white transition-colors duration-200 text-sm"
                                                     onClick={() =>
                                                         addKeyword(keyword)
                                                     }
@@ -712,7 +715,10 @@ function App() {
                         </div>
 
                         {/* State Selection */}
-                        <div className="space-y-2" ref={stateDropdownRef}>
+                        <div
+                            className="space-y-2 relative"
+                            ref={stateDropdownRef}
+                        >
                             <div className="flex justify-between items-center">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                     States
@@ -738,12 +744,12 @@ function App() {
                                 />
                                 {isStateDropdownOpen &&
                                     filteredStates.length > 0 && (
-                                        <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto">
+                                        <div className="absolute z-10 mt-1 w-full min-w-0 left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto">
                                             <ul className="py-1">
                                                 {filteredStates.map((state) => (
                                                     <li
                                                         key={state}
-                                                        className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-white transition-colors duration-200"
+                                                        className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-white transition-colors duration-200 text-sm"
                                                         onClick={() =>
                                                             handleStateSelect(
                                                                 state
