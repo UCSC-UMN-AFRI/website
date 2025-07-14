@@ -14,6 +14,7 @@ import {
     Info,
     Moon,
     Sun,
+    ChevronUp,
 } from "lucide-react";
 import search_keys, {
     initializeLocalSemanticSearch,
@@ -360,6 +361,9 @@ function App() {
         }
     });
 
+    // Back to top button state
+    const [showBackToTop, setShowBackToTop] = useState(false);
+
     // Initialize dark mode class on document
     useEffect(() => {
         if (darkMode) {
@@ -385,6 +389,25 @@ function App() {
 
     const toggleDarkMode = () => {
         setDarkMode((prev: boolean) => !prev);
+    };
+
+    // Back to top functionality
+    useEffect(() => {
+        const handleScroll = () => {
+            const scrollTop =
+                window.pageYOffset || document.documentElement.scrollTop;
+            setShowBackToTop(scrollTop > 300); // Show button after scrolling 300px
+        };
+
+        window.addEventListener("scroll", handleScroll);
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
+
+    const scrollToTop = () => {
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
     };
 
     return (
@@ -973,6 +996,23 @@ function App() {
                     )}
                 </div>
             </main>
+
+            {/* Back to Top Button */}
+            <AnimatePresence>
+                {showBackToTop && (
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        onClick={scrollToTop}
+                        className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        aria-label="Back to top"
+                        title="Back to top"
+                    >
+                        <ChevronUp className="h-6 w-6" />
+                    </motion.button>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
