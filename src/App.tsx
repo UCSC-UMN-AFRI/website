@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
     Search,
     Calendar,
@@ -20,19 +20,8 @@ import search_keys, {
     getExpandedKeywords,
 } from "./keywords";
 import { motion, AnimatePresence } from "framer-motion";
-
-interface LegislativeAct {
-    act_num: string;
-    year: number;
-    state: string;
-    name: string;
-    link: string;
-    backup_link: string;
-    relevances: {
-        score: number;
-        search_key: string;
-    }[];
-}
+import { useSearchResults } from "./hooks/useSearchResults";
+import { useInfiniteScroll } from "./hooks/useInfiniteScroll";
 
 function App() {
     const [yearRange, setYearRange] = useState({
@@ -46,10 +35,8 @@ function App() {
     const [filteredKeywords, setFilteredKeywords] = useState<string[]>([]);
     const [isKeywordDropdownOpen, setIsKeywordDropdownOpen] = useState(false);
     const keywordDropdownRef = useRef<HTMLDivElement>(null);
-    const [results, setResults] = useState<LegislativeAct[]>([]);
     const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
     const stateDropdownRef = useRef<HTMLDivElement>(null);
-    const [isLoading, setIsLoading] = useState(false);
 
     // Semantic search states
     const [isSemanticExpansionEnabled, setIsSemanticExpansionEnabled] =
@@ -63,12 +50,54 @@ function App() {
     const [isSemanticSearchPending, setIsSemanticSearchPending] =
         useState(false);
 
-    // Infinite scroll states
-    const [loadingMore, setLoadingMore] = useState(false);
-    const [hasMoreResults, setHasMoreResults] = useState(true);
-    const [offset, setOffset] = useState(0);
+    // Search and pagination
     const [resultsPerLoad, setResultsPerLoad] = useState(20);
     const [debouncedYearRange, setDebouncedYearRange] = useState(yearRange);
+
+    // Custom hooks for cleaner state management
+    const {
+        results,
+        isLoading,
+        hasMoreResults,
+        performSearch,
+        loadMore,
+        clearResults,
+    } = useSearchResults();
+
+    // Ref to prevent duplicate searches in rapid succession
+    const lastSearchRef = useRef<string>("");
+
+    // Create search parameters
+    const createSearchParams = useCallback(
+        () => ({
+            states: selectedStates,
+            fromYear: debouncedYearRange.min,
+            toYear: debouncedYearRange.max,
+            searchKeys:
+                isSemanticExpansionEnabled && expandedKeywords.length > 0
+                    ? expandedKeywords
+                    : keywords,
+            limit: resultsPerLoad,
+        }),
+        [
+            selectedStates,
+            debouncedYearRange,
+            isSemanticExpansionEnabled,
+            expandedKeywords,
+            keywords,
+            resultsPerLoad,
+        ]
+    );
+
+    // Infinite scroll hook
+    const { sentinelRef, isFetchingNextPage } = useInfiniteScroll({
+        hasNextPage: hasMoreResults,
+        fetchNextPage: async () => {
+            const searchParams = createSearchParams();
+            await loadMore(searchParams);
+        },
+        isLoading,
+    });
 
     // Initialize semantic search (server-side is always ready)
     useEffect(() => {
@@ -140,20 +169,33 @@ function App() {
         return () => clearTimeout(timer);
     }, [yearRange]);
 
-    // Auto-search effect
+    // Auto-search effect with duplicate prevention
     useEffect(() => {
-        if (keywords.length > 0) {
-            handleSearch(true);
-        } else {
-            setResults([]);
-            setOffset(0);
-            setHasMoreResults(true);
+        const searchParams = createSearchParams();
+        const searchKey = JSON.stringify({
+            keywords: searchParams.searchKeys,
+            states: searchParams.states,
+            fromYear: searchParams.fromYear,
+            toYear: searchParams.toYear,
+        });
+
+        // Only search if parameters have actually changed
+        if (searchKey !== lastSearchRef.current) {
+            lastSearchRef.current = searchKey;
+
+            if (keywords.length > 0) {
+                performSearch(searchParams);
+            } else {
+                clearResults();
+            }
         }
     }, [
-        expandedKeywords,
+        keywords,
         selectedStates,
         debouncedYearRange.min,
         debouncedYearRange.max,
+        // Only trigger on expandedKeywords changes when semantic expansion is enabled
+        ...(isSemanticExpansionEnabled ? [expandedKeywords] : []),
     ]);
 
     useEffect(() => {
@@ -177,96 +219,10 @@ function App() {
             document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Scroll detection for infinite scroll
-    useEffect(() => {
-        const handleScroll = () => {
-            if (
-                window.innerHeight + document.documentElement.scrollTop + 100 >=
-                    document.documentElement.offsetHeight &&
-                !loadingMore &&
-                !isLoading &&
-                hasMoreResults &&
-                results.length > 0
-            ) {
-                loadMoreResults();
-            }
-        };
-
-        window.addEventListener("scroll", handleScroll);
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, [loadingMore, isLoading, hasMoreResults, results.length]);
-
-    const handleSearch = async (isNewSearch = true) => {
-        // Prevent search if no keywords are entered
-        if (keywords.length === 0) {
-            console.log("Search prevented: No keywords provided.");
-            setResults([]); // Clear previous results
-            setOffset(0);
-            setHasMoreResults(true);
-            return;
-        }
-
-        if (isNewSearch) {
-            setIsLoading(true);
-            setOffset(0);
-            setHasMoreResults(true);
-        }
-
-        const searchOffset = isNewSearch ? 0 : offset;
-
-        try {
-            // Use expanded keywords if semantic expansion is enabled
-            const searchKeys =
-                isSemanticExpansionEnabled && expandedKeywords.length > 0
-                    ? expandedKeywords
-                    : keywords;
-
-            const response = await fetch("api/search", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    states: selectedStates,
-                    from_year: yearRange.min,
-                    to_year: yearRange.max,
-                    search_keys: searchKeys,
-                    limit: resultsPerLoad,
-                    offset: searchOffset,
-                }),
-            });
-            const data = await response.json();
-
-            if (isNewSearch) {
-                setResults(data);
-            } else {
-                setResults((prevResults) => [...prevResults, ...data]);
-            }
-
-            // If we got fewer results than requested, we've reached the end
-            setHasMoreResults(data.length === resultsPerLoad);
-            setOffset(searchOffset + data.length);
-        } catch (error) {
-            console.error("Error fetching results:", error);
-            if (isNewSearch) {
-                setResults([]);
-            }
-        } finally {
-            if (isNewSearch) {
-                setIsLoading(false);
-            }
-        }
-    };
-
-    const loadMoreResults = async () => {
-        if (loadingMore || !hasMoreResults || keywords.length === 0) return;
-
-        setLoadingMore(true);
-        try {
-            await handleSearch(false);
-        } finally {
-            setLoadingMore(false);
-        }
+    // Simplified search handler for manual search button
+    const handleSearch = async () => {
+        const searchParams = createSearchParams();
+        await performSearch(searchParams);
     };
 
     const handleResultsPerLoadChange = (value: number) => {
@@ -865,7 +821,7 @@ function App() {
                             </select>
                         </div>
                         <button
-                            onClick={() => handleSearch(true)}
+                            onClick={handleSearch}
                             disabled={keywords.length === 0 || isLoading}
                             className={`bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white px-6 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 flex items-center space-x-2 ${
                                 keywords.length === 0 || isLoading
@@ -999,8 +955,13 @@ function App() {
                         </div>
                     )}
 
+                    {/* Intersection Observer Sentinel for Infinite Scroll */}
+                    {hasMoreResults && results.length > 0 && (
+                        <div ref={sentinelRef} className="h-1" />
+                    )}
+
                     {/* Loading More Indicator */}
-                    {loadingMore && (
+                    {isFetchingNextPage && (
                         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
                             <div className="flex justify-center items-center space-x-2">
                                 <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
