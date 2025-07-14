@@ -343,6 +343,14 @@ function App() {
         setKeywords(keywords.filter((k) => k !== keyword));
     };
 
+    const handleClearAllKeywords = () => {
+        setKeywords([]);
+        setCurrentKeyword("");
+        setFilteredKeywords([]);
+        setExpandedKeywords([]);
+        setIsKeywordDropdownOpen(false);
+    };
+
     const handleKeywordKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
             e.preventDefault();
@@ -660,6 +668,18 @@ function App() {
                                     </span>
                                 ))}
                             </div>
+                            {keywords.length > 0 && (
+                                <div className="w-full flex justify-end mb-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleClearAllKeywords}
+                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
+                                    >
+                                        <X className="h-4 w-4 mr-1.5" />
+                                        Clear All Keywords
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Expanded Keywords Display */}
                             {isSemanticExpansionEnabled &&
