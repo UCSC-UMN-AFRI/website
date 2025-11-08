@@ -44,11 +44,24 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 status_code=400
             )
 
+        # if keyword has spaces, replace it with two keyword one with underscore and one with hyphen
+        # since we are using search key as partion key in cosmos db it's important to have correct one
+        # otherwise it will return nothing.
+        # NOTE: a better long-term solution would be is to standardize the search keys to a single format
+        parsed_search_keys = []
+        for key in search_keys:
+            key = key.trim().lower()
+            if ' ' in key:
+                parsed_search_keys.append(key.replace(' ', '_'))
+                parsed_search_keys.append(key.replace(' ', '-'))
+            else:
+                parsed_search_keys.append(key)
+
         query = f"""
             SELECT c.act_num, c.relevance, c.search_key
             FROM c
             WHERE (c.year BETWEEN {from_year} AND {to_year})
-            AND c.search_key IN ({','.join([f"'{key}'" for key in search_keys])})
+            AND c.search_key IN ({','.join([f"'{key}'" for key in parsed_search_keys])})
         """
 
         if len(states) > 0:
