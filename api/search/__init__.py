@@ -50,7 +50,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         # NOTE: a better long-term solution would be is to standardize the search keys to a single format
         parsed_search_keys = []
         for key in search_keys:
-            key = key.trim().lower()
+            key = key.strip().lower()
             if ' ' in key:
                 parsed_search_keys.append(key.replace(' ', '_'))
                 parsed_search_keys.append(key.replace(' ', '-'))
