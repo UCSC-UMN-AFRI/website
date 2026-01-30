@@ -19,6 +19,7 @@ interface SearchParams {
     toYear: number;
     searchKeys: string[];
     limit: number;
+    sort: string; // NEW FIELD
 }
 
 interface UseSearchResultsReturn {
@@ -49,6 +50,7 @@ export function useSearchResults(): UseSearchResultsReturn {
                     to_year: params.toYear,
                     search_keys: params.searchKeys,
                     limit: params.limit,
+                    sort: params.sort, // Send the sort to Python
                     offset: currentOffset,
                 }),
             });

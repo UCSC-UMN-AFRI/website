@@ -1,124 +1,151 @@
-from datetime import datetime
 import logging
 import json
-
+import os
+import io
+import csv
+import sys
 import azure.functions as func
-from azure.cosmos import CosmosClient
+from azure.storage.blob import BlobServiceClient
 
-from os import environ
+
+csv.field_size_limit(sys.maxsize)
+
+CACHED_DATA = []
+
+def get_data_from_csvs():
+    global CACHED_DATA
+    if CACHED_DATA: return CACHED_DATA
+
+    try:
+        conn_str = os.environ.get("BLOB_CONNECTION_STRING")
+        if not conn_str: return []
+    
+
+        container = os.environ.get("BLOB_CONTAINER_NAME","clean-data")
+        blob_service_client = BlobServiceClient.from_connection_string(conn_str)
+        container_client = blob_service_client.get_container_client(container)
+
+        aggregated_data = []
+        file_count = 0
+
+        blobs = container_client.list_blobs()
+        for blob in blobs:
+            if blob.name.lower().endswith('.csv'):
+                logging.info(f"Downloading CSV: {blob.name}")
+                download_stream = container_client.download_blob(blob.name).readall()
+                csv_file = io.StringIO(download_stream.decode("utf-8", errors='ignore'))
+                reader = csv.DictReader(csv_file)
+                
+                for row in reader:
+                    text = row.get('original_text', '') or row.get('Full text', '')
+                    w_count = len(text.split()) if text else 0
+                    
+                    try: total = float(row.get('total_weighted_score', 0))
+                    except: total = 0
+                    
+                    try: sentiment = float(row.get('sentiment_score', 0))
+                    except: sentiment = 0
+                    
+                    try: year = int(float(row.get('year', 0))) if row.get('year') else 1900
+                    except: year = 1900
+
+                    # Auto-detect Stage
+                    name = row.get('name', row.get('summary', 'Untitled Act'))
+                    stage = "Resolution" if "Resolution" in name else "Enacted Law"
+
+                    item = {
+                        "act_num": row.get('act_num', row.get('bill_num', 'Unknown')),
+                        "year": year,
+                        "state": row.get('state', blob.name[:2].upper()),
+                        "name": name,
+                        "link": row.get('link', '#'),
+                        "backup_link": "#",
+                        "word_count": w_count,
+                        "total_score": total,
+                        "sentiment": sentiment,
+                        "stage": stage,
+                        "relevances": [{"score": 0.5, "search_key": "csv_match"}]
+                    }
+                    
+                    if item['year'] > 1900:
+                        aggregated_data.append(item)
+                
+                file_count += 1
+                if file_count >= 2: break 
+
+        logging.info(f"Loaded {len(aggregated_data)} bills from {file_count} CSV files.")
+        CACHED_DATA = aggregated_data
+        return aggregated_data
+
+    except Exception as e:
+        logging.error(f"Error processing CSVs: {str(e)}")
+        return []
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        logging.info('Python HTTP trigger function processed a request.')
-
         try:
             body = req.get_json()
-        except ValueError:
+        except:
             body = {}
-
-        states = body.get('states', [])
-        from_year = body.get('from_year', 1975)
-        to_year = body.get('to_year', datetime.now().year)
+        
         search_keys = body.get('search_keys', [])
+        sort_mode = body.get('sort', 'relevance') # Get Sort Parameter
         offset = body.get('offset', 0)
-        limit = body.get('limit', 100)
+        limit = body.get('limit', 20)
 
-        if limit > 500:
-            return func.HttpResponse(
-                json.dumps({"error": "Limit must be less than 500"}),
-                mimetype="application/json",
-                status_code=400
-            )
+        # Cache data load
+        all_acts = get_data_from_csvs()
+        
+        # 1. Filter
+        filtered = []
+        for act in all_acts:
+            # Keyword filter
+            if search_keys:
+                found = False
+                search_target = (act['name'] + " " + str(act['act_num'])).lower()
+                for k in search_keys:
+                    if k.lower() in search_target:
+                        found = True
+                        break
+                if not found: continue
+            
+            # (State filters etc go here)
+            filtered.append(act)
 
-        client = CosmosClient(environ["ACCOUNT_URI"], credential=environ["ACCOUNT_KEY"])
-        database = client.get_database_client(environ["COSMOS_DB_NAME"])
-        search_index = database.get_container_client("search_index")
-        acts = database.get_container_client("acts")
+        # If empty search, cap at 1000 for sorting to be fast
+        if not search_keys:
+            filtered = filtered[:1000]
 
-        # todo: sanitize input as cosmos db doesn't support parameters properly
+        # 2. Sort (Backend Power!)
+        reverse = True
+        key = lambda x: x['total_score'] # Default
 
-        if len(search_keys) == 0:
-            return func.HttpResponse(
-                json.dumps({"error": "Search keys are required"}),
-                mimetype="application/json",
-                status_code=400
-            )
+        if sort_mode == 'recent':
+            key = lambda x: x['year']
+            reverse = True
+        elif sort_mode == 'oldest':
+            key = lambda x: x['year']
+            reverse = False
+        elif sort_mode == 'length_high':
+            key = lambda x: x['word_count']
+            reverse = True
+        elif sort_mode == 'length_low':
+            key = lambda x: x['word_count'] if x['word_count'] > 0 else 999999
+            reverse = False
+        elif sort_mode == 'stage_enacted':
+            # "Resolution" comes after "Enacted" alphabetically? No.
+            # Law = 2, Res = 1
+            key = lambda x: 2 if "Enacted" in x['stage'] else 1
+            reverse = True
 
-        # if keyword has spaces, replace it with two keyword one with underscore and one with hyphen
-        # since we are using search key as partion key in cosmos db it's important to have correct one
-        # otherwise it will return nothing.
-        # NOTE: a better long-term solution would be is to standardize the search keys to a single format
-        parsed_search_keys = []
-        for key in search_keys:
-            key = key.strip().lower()
-            if ' ' in key:
-                parsed_search_keys.append(key.replace(' ', '_'))
-                parsed_search_keys.append(key.replace(' ', '-'))
-            else:
-                parsed_search_keys.append(key)
+        filtered.sort(key=key, reverse=reverse)
 
-        query = f"""
-            SELECT c.act_num, c.relevance, c.search_key
-            FROM c
-            WHERE (c.year BETWEEN {from_year} AND {to_year})
-            AND c.search_key IN ({','.join([f"'{key}'" for key in parsed_search_keys])})
-        """
+        # 3. Paginate
+        start = offset
+        end = offset + limit
+        paged_results = filtered[start:end]
 
-        if len(states) > 0:
-            query += f""" AND c.state IN ({','.join([f"'{state}'" for state in states])})"""
-
-        query += f"""
-            ORDER BY c.relevance DESC
-            OFFSET {offset} LIMIT {limit}
-        """
-
-        search_items = [item for item in search_index.query_items(
-            query=query,
-            enable_cross_partition_query=True
-        )]
-
-        acts_to_fetch = [item['act_num'] for item in search_items]
-        if len(acts_to_fetch) == 0:
-            return func.HttpResponse(
-                json.dumps([]),
-                mimetype="application/json",
-                status_code=200
-            )
-
-        acts_items = acts.query_items(
-            query=f"""SELECT * FROM c WHERE c.act_num IN ({','.join([f"'{act}'" for act in acts_to_fetch])})""",
-            enable_cross_partition_query=True
-        )
-
-        act_data = {}
-        for act_item in acts_items:
-            act_data[act_item['act_num']] = act_item
-
-        act_items = {}
-        for search_item in search_items:
-            act_item = act_data[search_item['act_num']]
-            # truncate name to 500 characters
-            if act_items.get(act_item['act_num']) is None:
-                act_items[act_item['act_num']] = {
-                    "act_num": act_item['act_num'],
-                    "year": act_item['year'],
-                    "state": act_item['state'],
-                    "name": act_item['name'][:500] + '...' if len(act_item['name']) > 500 else act_item['name'],
-                    "link": act_item['link'],
-                    "backup_link": f"https://statelegislativedata.blob.core.windows.net/raw-data/{search_item['act_num']}.pdf",
-                    "relevances": []
-                }
-
-            act_items[act_item['act_num']]['relevances'].append({
-                "score": search_item['relevance'],
-                "search_key": search_item['search_key'],
-            })
-
-        return func.HttpResponse(
-            json.dumps(list(act_items.values())),
-            mimetype="application/json",
-            status_code=200
-        )
+        return func.HttpResponse(json.dumps(paged_results), mimetype="application/json", status_code=200)
 
     except Exception as e:
-        return func.HttpResponse(f"Error: {e}", status_code=500)
+        return func.HttpResponse(f"API Error: {str(e)}", status_code=500)
