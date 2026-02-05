@@ -70,8 +70,8 @@ def get_data_from_csvs():
                     if item['year'] > 1900:
                         aggregated_data.append(item)
                 
-                file_count += 1
-                if file_count >= 2: break 
+                #file_count += 1
+                #if file_count >= 2: break 
 
         logging.info(f"Loaded {len(aggregated_data)} bills from {file_count} CSV files.")
         CACHED_DATA = aggregated_data
@@ -139,6 +139,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             reverse = True
 
         filtered.sort(key=key, reverse=reverse)
+
+        if not search_keys:
+            filtered=filtered[:1000]
 
         # 3. Paginate
         start = offset

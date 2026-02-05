@@ -24,3 +24,4 @@ dist-ssr
 *.sw?
 
 embeddings
+api/local.settings.json
