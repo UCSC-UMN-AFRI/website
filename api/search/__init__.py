@@ -104,7 +104,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                     "year": act_item['year'],
                     "state": act_item['state'],
                     "name": act_item['name'][:500] + '...' if len(act_item['name']) > 500 else act_item['name'],
-                    "link": act_item['link'],
+                    "link": f"https://statelegislativedata.blob.core.windows.net/raw-data/{act_item['act_num']}.pdf",
                     "backup_link": f"https://statelegislativedata.blob.core.windows.net/raw-data/{search_item['act_num']}.pdf",
                     "relevances": []
                 }
