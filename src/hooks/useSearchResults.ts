@@ -30,6 +30,41 @@ interface UseSearchResultsReturn {
     clearResults: () => void;
 }
 
+function mergeResults(
+    existing: LegislativeAct[],
+    incoming: LegislativeAct[]
+): LegislativeAct[] {
+    const byActNum = new Map<string, LegislativeAct>();
+    const order: string[] = [];
+
+    for (const act of [...existing, ...incoming]) {
+        const current = byActNum.get(act.act_num);
+        if (!current) {
+            byActNum.set(act.act_num, {
+                ...act,
+                relevances: [...act.relevances],
+            });
+            order.push(act.act_num);
+            continue;
+        }
+        for (const rel of act.relevances) {
+            const found = current.relevances.find(
+                (r) => r.search_key === rel.search_key
+            );
+            if (!found) {
+                current.relevances.push({ ...rel });
+            } else if (rel.score > found.score) {
+                found.score = rel.score;
+            }
+        }
+    }
+
+    return order.flatMap((actNum) => {
+        const act = byActNum.get(actNum);
+        return act ? [act] : [];
+    });
+}
+
 export function useSearchResults(): UseSearchResultsReturn {
     const [results, setResults] = useState<LegislativeAct[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -74,7 +109,7 @@ export function useSearchResults(): UseSearchResultsReturn {
             setIsLoading(true);
             try {
                 const data = await searchAPI(params, 0);
-                setResults(data);
+                setResults(mergeResults([], data));
                 setOffset(data.length);
                 setHasMoreResults(data.length === params.limit);
             } catch (error) {
@@ -95,7 +130,7 @@ export function useSearchResults(): UseSearchResultsReturn {
 
             try {
                 const data = await searchAPI(params, offset);
-                setResults((prev) => [...prev, ...data]);
+                setResults((prev) => mergeResults(prev, data));
                 setOffset((prev) => prev + data.length);
                 setHasMoreResults(data.length === params.limit);
             } catch (error) {
