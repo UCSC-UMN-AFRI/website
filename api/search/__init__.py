@@ -97,22 +97,39 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         act_items = {}
         for search_item in search_items:
             act_item = act_data[search_item['act_num']]
-            # truncate name to 500 characters
-            if act_items.get(act_item['act_num']) is None:
-                act_items[act_item['act_num']] = {
-                    "act_num": act_item['act_num'],
+            base = act_item.get('base_act_num') or act_item['act_num']
+            name = act_item['name']
+            if len(name) > 500:
+                name = name[:500] + '...'
+            pdf_url = (
+                f"https://statelegislativedata.blob.core.windows.net/raw-data/{base}.pdf"
+            )
+
+            if act_items.get(base) is None:
+                act_items[base] = {
+                    "act_num": base,
                     "year": act_item['year'],
                     "state": act_item['state'],
-                    "name": act_item['name'][:500] + '...' if len(act_item['name']) > 500 else act_item['name'],
-                    "link": f"https://statelegislativedata.blob.core.windows.net/raw-data/{act_item['act_num']}.pdf",
-                    "backup_link": f"https://statelegislativedata.blob.core.windows.net/raw-data/{search_item['act_num']}.pdf",
+                    "name": name,
+                    "link": pdf_url,
+                    "backup_link": pdf_url,
                     "relevances": []
                 }
 
-            act_items[act_item['act_num']]['relevances'].append({
-                "score": search_item['relevance'],
-                "search_key": search_item['search_key'],
-            })
+            relevances = act_items[base]['relevances']
+            search_key = search_item['search_key']
+            relevance = search_item['relevance']
+            existing = next(
+                (r for r in relevances if r['search_key'] == search_key),
+                None,
+            )
+            if existing is None:
+                relevances.append({
+                    "score": relevance,
+                    "search_key": search_key,
+                })
+            elif relevance > existing['score']:
+                existing['score'] = relevance
 
         return func.HttpResponse(
             json.dumps(list(act_items.values())),
