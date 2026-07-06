@@ -67,74 +67,75 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         if len(states) > 0:
             query += f""" AND c.state IN ({','.join([f"'{state}'" for state in states])})"""
 
-        query += f"""
-            ORDER BY c.relevance DESC
-            OFFSET {offset} LIMIT {limit}
-        """
+        search_items = list(
+            search_index.query_items(
+                query=query,
+                enable_cross_partition_query=True,
+            )
+        )
 
-        search_items = [item for item in search_index.query_items(
-            query=query,
-            enable_cross_partition_query=True
-        )]
+        agg: dict[str, dict] = {}
+        for item in search_items:
+            act_num = item["act_num"]
+            entry = agg.setdefault(act_num, {"keys": {}, "max": 0})
+            search_key = item["search_key"]
+            relevance = item["relevance"]
+            if search_key not in entry["keys"] or relevance > entry["keys"][search_key]:
+                entry["keys"][search_key] = relevance
+            if relevance > entry["max"]:
+                entry["max"] = relevance
 
-        acts_to_fetch = [item['act_num'] for item in search_items]
-        if len(acts_to_fetch) == 0:
+        ordered_act_nums = sorted(agg.keys(), key=lambda a: (-agg[a]["max"], a))
+        page_act_nums = ordered_act_nums[offset : offset + limit]
+        if not page_act_nums:
             return func.HttpResponse(
                 json.dumps([]),
                 mimetype="application/json",
-                status_code=200
+                status_code=200,
             )
 
         acts_items = acts.query_items(
-            query=f"""SELECT * FROM c WHERE c.act_num IN ({','.join([f"'{act}'" for act in acts_to_fetch])})""",
-            enable_cross_partition_query=True
+            query=f"""SELECT * FROM c WHERE c.act_num IN ({','.join([f"'{act}'" for act in page_act_nums])})""",
+            enable_cross_partition_query=True,
         )
 
-        act_data = {}
-        for act_item in acts_items:
-            act_data[act_item['act_num']] = act_item
+        act_data = {act_item["act_num"]: act_item for act_item in acts_items}
 
-        act_items = {}
-        for search_item in search_items:
-            act_item = act_data[search_item['act_num']]
-            base = act_item.get('base_act_num') or act_item['act_num']
-            name = act_item['name']
+        results = []
+        for act_num in page_act_nums:
+            act_item = act_data.get(act_num)
+            if act_item is None:
+                continue
+            base = act_item.get("base_act_num") or act_item["act_num"]
+            name = act_item["name"]
             if len(name) > 500:
-                name = name[:500] + '...'
+                name = name[:500] + "..."
             pdf_url = (
                 f"https://statelegislativedata.blob.core.windows.net/raw-data/{base}.pdf"
             )
-
-            if act_items.get(base) is None:
-                act_items[base] = {
+            relevances = sorted(
+                (
+                    {"score": score, "search_key": search_key}
+                    for search_key, score in agg[act_num]["keys"].items()
+                ),
+                key=lambda r: -r["score"],
+            )
+            results.append(
+                {
                     "act_num": base,
-                    "year": act_item['year'],
-                    "state": act_item['state'],
+                    "year": act_item["year"],
+                    "state": act_item["state"],
                     "name": name,
                     "link": pdf_url,
                     "backup_link": pdf_url,
-                    "relevances": []
+                    "relevances": relevances,
                 }
-
-            relevances = act_items[base]['relevances']
-            search_key = search_item['search_key']
-            relevance = search_item['relevance']
-            existing = next(
-                (r for r in relevances if r['search_key'] == search_key),
-                None,
             )
-            if existing is None:
-                relevances.append({
-                    "score": relevance,
-                    "search_key": search_key,
-                })
-            elif relevance > existing['score']:
-                existing['score'] = relevance
 
         return func.HttpResponse(
-            json.dumps(list(act_items.values())),
+            json.dumps(results),
             mimetype="application/json",
-            status_code=200
+            status_code=200,
         )
 
     except Exception as e:
